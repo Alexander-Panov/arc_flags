@@ -1,5 +1,4 @@
-from typing import Optional, List
-
+from algo.dijkstra import dijkstra, WeightedPath, path_dict_to_path, distance_array_to_vertex_dict, print_weighted_path
 from graph import Graph
 
 if __name__ == '__main__':
@@ -36,3 +35,14 @@ if __name__ == '__main__':
     city_graph2.add_edge_by_vertices("Philadelphia", "Washington", 123)
     print(city_graph2)
 
+    distances, path_dict = dijkstra(city_graph2, "Los Angeles")
+    name_distances: dict[str, int | None] = distance_array_to_vertex_dict(city_graph2, distances)
+
+    print("Distances from Los Angeles:")
+    for key, value in name_distances.items():
+        print(f"{key}: {value}")
+
+    print("\nShortest path from Los Angeles to Boston:")
+    path: WeightedPath = path_dict_to_path(city_graph2.index_of("Los Angeles"), city_graph2.index_of("Boston"),
+                                           path_dict)
+    print_weighted_path(city_graph2, path)

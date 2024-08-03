@@ -1,2 +1,4 @@
 .idea
 .venv
+algo/__pycache__
+gui/__pycache__

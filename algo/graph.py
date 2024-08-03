@@ -4,12 +4,16 @@ from typing import TypeVar, Generic, List, Tuple
 
 from edge import Edge
 
-V = TypeVar('V')
+V = TypeVar('V')  # Тип вершины
 
 
 class Graph(Generic[V]):
     def __init__(self, vertices: List[V] = []) -> None:
+        # _vertices - список вершин графа
         self._vertices: List[V] = vertices
+
+        # Используются списки смежности (_edges), у каждой вершины есть список ребер
+        # с которыми она связана с другими вершинами
         self._edges: List[List[Edge]] = [[] for _ in vertices]
 
     @property
@@ -23,11 +27,12 @@ class Graph(Generic[V]):
         return len(self._edges)
 
     def add_vertex(self, vertex: V) -> int:
-        """ Добавить новую вершину """
+        """ Добавить новую вершину и возвращаем ее индекс """
         self._vertices.append(vertex)
-        self._edges.append([])
-        return self.vertex_count + 1
+        self._edges.append([])  # Добавляем пустой список для ребер
+        return self.vertex_count - 1  # Возвращаем индекс по добавленным вершинам
 
+    # Граф ненаправленный, поэтому всегда добавляем вершины в обоих направлениях
     def add_edge(self, edge: Edge) -> None:
         """ Добавить новое ребро """
         self._edges[edge.u].append(edge)
@@ -44,7 +49,7 @@ class Graph(Generic[V]):
         self.add_edge_by_indices(u, v, weight)
 
     def vertex_at(self, i: int) -> V:
-        """ Вернуть вершину под индексом """
+        """ Вернуть вершину под индексом (Поиск вершины по индексу) """
         return self._vertices[i]
 
     def index_of(self, vertex: V) -> int:
@@ -63,7 +68,7 @@ class Graph(Generic[V]):
         return [(self.vertex_at(edge.v), edge.weight) for edge in self.edges_of_index(index)]
 
     def edges_of_index(self, index: int) -> List[Edge]:
-        """ Получить ребра вершины по индексу """
+        """ Возвращает все ребра, связанные с вершиной, имеющей заданный индекс """
         return self._edges[index]
 
     def edges_of_vertex(self, vertex: V) -> List[V]:
