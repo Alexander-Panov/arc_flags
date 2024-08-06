@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from heapq import heappush, heappop
-from typing import List, TypeVar, Generic
+from typing import TypeVar, Generic
 
+from algo.utils import clock
 from edge import Edge
 from graph import Graph, V
 
@@ -58,9 +59,10 @@ class DijkstraNode:
 """ Алгоритм Дейкстры """
 
 
-def dijkstra(weighted_graph: Graph, root: V) -> tuple[list[float | None], dict[int, Edge]]:
+def dijkstra_all(weighted_graph: Graph, root: V) -> tuple[list[float | None], dict[int, Edge]]:
     """
-    Алгоритм Дейкстры
+    Алгоритм Дейкстры от корня до всех вершин в графе
+    Получает дерево кратчайших путей до корня
     :param weighted_graph: Взвешенный граф, где осуществить поиск
     :param root: Откуда (из какой вершины) осуществить поиск
     :return:
@@ -69,7 +71,7 @@ def dijkstra(weighted_graph: Graph, root: V) -> tuple[list[float | None], dict[i
     """
     first: int = weighted_graph.index_of(root)  # индекс корня
 
-    distances: List[float | None] = [None] * weighted_graph.vertex_count  # расстояния от корня до каждой вершины
+    distances: list[float | None] = [None] * weighted_graph.vertex_count  # расстояния от корня до каждой вершины
     distances[first] = 0  # расстояние от корня до корня
 
     path_dict: dict[int, Edge] = {}  # Как добраться до каждой вершины
@@ -82,12 +84,10 @@ def dijkstra(weighted_graph: Graph, root: V) -> tuple[list[float | None], dict[i
         dist_u: float = distances[u]  # Рассмотреть все ребра и вершины для данной вершины
         # dist_u - сохраненное расстояние, по которому можно добратвься до u по известным маршрутам
 
-        # ??????????????????????????????????????
         # Рассмотреть все ребра и вершины для данной вершины
         for we in weighted_graph.edges_of_index(u):  # Вот тут уже не очень понятно
             # Старое расстояние до этой вершины
             dist_v: float = distances[we.v]
-            # ???????????????????????????????????
 
             # Затем исследуются ребра связанные с u и dist_v
             # Это расстояние до всех известных вершины, соединенных ребром с u
@@ -106,6 +106,26 @@ def dijkstra(weighted_graph: Graph, root: V) -> tuple[list[float | None], dict[i
     return distances, path_dict
 
 
+@clock
+def dijkstra(weighted_graph: Graph, start: V, end: V) -> tuple[float, WeightedPath]:
+    """
+    Поиск кратчайшего пути через однонаправленный поиск алгоритма Дейкстры
+    :param weighted_graph: взвешенный граф
+    :param start: вершина начала поиска
+    :param end: вершина конца поиска
+    :return: расстояние между вершинами и путь от начала до конца
+    """
+    start_index = weighted_graph.index_of(start)
+    end_index = weighted_graph.index_of(end)
+
+    distances, path_dict = dijkstra_all(weighted_graph, start)  # получает дерево кратчайших путей из start
+    distance = distances[end_index]  # получить расстояние до end
+
+    path: WeightedPath = path_dict_to_path(start_index, end_index, path_dict)
+
+    return distance, path
+
+
 """ Вспомогательные функции """
 
 WeightedPath = list[Edge]  # Обозначение WeightedPath (маршрут) как список ребер
@@ -116,7 +136,7 @@ def path_dict_to_path(start: int, end: int, path_dict: dict[int, Edge]) -> Weigh
     if len(path_dict) == 0:
         return []
     edge_path: WeightedPath = []
-    e: list[Edge] = path_dict[end]
+    e: Edge = path_dict[end]
     edge_path.append(e)
     while e.u != start:
         e = path_dict[e.u]
@@ -133,7 +153,7 @@ def print_weighted_path(wg: Graph, path: WeightedPath) -> None:
     """Красиво вывести в консоль маршрут"""
     for edge in path:
         print(f'{wg.vertex_at(edge.u)} -{edge.weight}-> {wg.vertex_at(edge.v)}')
-    print(f'Total weight: {total_weight(path)}')
+    print(f'Суммарный вес: {total_weight(path)}')
 
 
 def total_weight(wp: WeightedPath) -> int:
