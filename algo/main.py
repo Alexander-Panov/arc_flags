@@ -1,6 +1,6 @@
-from algo.dijkstra import dijkstra_all, WeightedPath, path_dict_to_path, distance_array_to_vertex_dict, \
-    print_weighted_path, dijkstra
-from algo.dijkstra_bidirectional import dijkstra_bidirectional
+from algo.dijkstra.dijkstra_bidirectional import dijkstra_bidirectional
+from algo.dijkstra.dijkstra_unidirectional import dijkstra_unidirectional
+from algo.dijkstra.utils import print_weighted_path
 from graph import Graph
 
 if __name__ == '__main__':
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     print(city_graph)
 
     print("\nОднонаправленный поиск:")
-    distance, path = dijkstra(city_graph, "Los Angeles", "Boston")
+    distance, path = dijkstra_unidirectional(city_graph, "Los Angeles", "Boston")
     print("Кратчайший путь из Los Angeles в Boston:")
     print_weighted_path(city_graph, path)
 

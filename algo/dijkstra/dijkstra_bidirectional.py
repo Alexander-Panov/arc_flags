@@ -1,4 +1,6 @@
-from algo.dijkstra import PriorityQueue, DijkstraNode, WeightedPath, path_dict_to_path
+from algo.dijkstra.dijkstra import dijkstra_step
+from algo.dijkstra.structures import WeightedPath, PriorityQueue, DijkstraNode
+from algo.dijkstra.utils import path_dict_to_path
 from algo.edge import Edge
 from algo.graph import Graph, V
 from algo.utils import clock
@@ -13,32 +15,6 @@ def dijkstra_bidirectional(weighted_graph: Graph, start: V, end: V) -> tuple[flo
     :param end: вершина конца поиска
     :return: расстояние между вершинами и путь от начала до конца
     """
-
-    def dijkstra_step(queue: PriorityQueue[DijkstraNode],
-                      distances: list[float | None],
-                      path_dict: dict[int, Edge],
-                      visited: set):
-        """
-        Локальная функция шага алгоритма Дейкстры
-        Функция полностью проверяет одну вершину из приоритетной очереди
-        :param queue: приоритетная очередь вершин к проверке
-        :param distances: уже известные расстояния до вершин к моменту запуска функции
-        :param path_dict: уже известный словарь маршрутов к вершинам к моменту запуска функции
-        :param visited: множество уже посещенных вершин
-        :return: ничего
-        """
-        if queue.empty:  # если очередь с приоритетом пустая
-            return  # функция завершается
-        dijkstra_node = queue.pop()
-        u = dijkstra_node.vertex
-        dist_u = distances[u]
-        for we in weighted_graph.edges_of_index(u):
-            dist_v = distances[we.v]
-            if dist_v is None or dist_v > dist_u + we.weight:
-                distances[we.v] = dist_u + we.weight
-                path_dict[we.v] = we
-                queue.push(DijkstraNode(we.v, distances[we.v]))
-        visited.add(u)  # отметить что вершина посещена
 
     # Для start и end получаем их индексы
     start_index = weighted_graph.index_of(start)
@@ -65,12 +41,12 @@ def dijkstra_bidirectional(weighted_graph: Graph, start: V, end: V) -> tuple[flo
     visited_end = set()
 
     while not queue_start.empty and not queue_end.empty:
-        dijkstra_step(queue_start, distances_start, path_dict_start, visited_start)
+        dijkstra_step(weighted_graph, queue_start, distances_start, path_dict_start, visited_start)
         if visited_start & visited_end:  # {A, Z} & {Z, C} = Z
             # Алгоритм завершит свою работу, когда какая-нибудь вершина z
             # будет удалена из обеих очередей.
             break
-        dijkstra_step(queue_end, distances_end, path_dict_end, visited_end)
+        dijkstra_step(weighted_graph, queue_end, distances_end, path_dict_end, visited_end)
         if visited_start & visited_end:  # {A, Z} & {Z, C} = Z
             break
 
