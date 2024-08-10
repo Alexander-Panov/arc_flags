@@ -3,23 +3,33 @@ from __future__ import annotations
 
 from algo.dijkstra.structures import WeightedPath
 from algo.edge import Edge
-from algo.graph import Graph, V
+from algo.graph import Graph
+from algo.vertex import Vertex
 
 
-def path_dict_to_path(start: int, end: int, path_dict: dict[int, Edge]) -> WeightedPath:
+def path_dict_to_path(start: int, end: int, path_dict: dict[int, Edge], reverse=False) -> WeightedPath:
     """ Получить по path_dict из алгоритма Дейкстры маршрут из вершины start до вершины end"""
     if len(path_dict) == 0:
+        return []
+    if start == end:
         return []
     edge_path: WeightedPath = []
     e: Edge = path_dict[end]
     edge_path.append(e)
-    while e.u != start:
-        e = path_dict[e.u]
-        edge_path.append(e)
+    if not reverse:
+        while e.u != start:
+            e = path_dict[e.u]
+            edge_path.append(e)
+    else:
+        while e.v != start:
+            e = path_dict[e.v]
+            edge_path.insert(0, e)
+
     return list(reversed(edge_path))
 
 
-def distance_array_to_vertex_dict(wg: Graph[V], distances: list[float | None]) -> dict[V, float | None]:
+
+def distance_array_to_vertex_dict(wg: Graph, distances: list[float | None]) -> dict[Vertex, float | None]:
     """Преобразование списка расстояний в словарь расстояний"""
     return {wg.vertex_at(i): distances[i] for i in range(len(distances))}
 

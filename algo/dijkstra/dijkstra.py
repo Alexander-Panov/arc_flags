@@ -3,14 +3,18 @@ from __future__ import annotations
 
 from algo.dijkstra.structures import PriorityQueue, DijkstraNode
 from algo.edge import Edge
-from algo.graph import Graph, V
+from algo.graph import Graph
+from algo.vertex import Vertex
 
 
 def dijkstra_step(weighted_graph: Graph,
                   priority_queue: PriorityQueue[DijkstraNode],
                   distances: list[float | None],
-                  path_dict: dict[int, Edge],
-                  visited: set = None):
+                  path_dict: dict[int, Edge], *,
+                  reverse: bool = False,
+                  arc_flags: bool = False,
+                  visited: set = None,
+                  root: Vertex = None):
     """
     Функция шага алгоритма Дейкстры.
     Функция полностью проверяет одну вершину из приоритетной очереди
@@ -18,6 +22,8 @@ def dijkstra_step(weighted_graph: Graph,
     :param priority_queue: приоритетная очередь вершин к проверке
     :param distances: уже известные расстояния до вершин к моменту запуска функции
     :param path_dict: уже известный словарь маршрутов к вершинам к моменту запуска функции
+    :param reverse: получать "выходящие" из вершины ребра или "входящие" (по умолчанию "выходящие")
+    :param arc_flags: включить оптимизацию arc_flags
     :param visited: множество уже посещенных вершин
     :return: ничего
     """
@@ -27,32 +33,47 @@ def dijkstra_step(weighted_graph: Graph,
     u: int = dijkstra_node.vertex  # Исследуем ближайшую вершину
     # u - текущая вершина, с которой начинается поиск
     dist_u: float = distances[u]  # Рассмотреть все ребра и вершины для данной вершины
-    # dist_u - сохраненное расстояние, по которому можно добратвься до u по известным маршрутам
+    # dist_u - сохраненное расстояние, по которому можно добраться до u по известным маршрутам
 
-    # Рассмотреть все ребра и вершины для данной вершины
-    for we in weighted_graph.edges_of_index(u):
-        dist_v: float = distances[we.v]
+    # Рассмотреть все ребра и вершины для данной вершины (выходящие или входящие в зависимости от reversed)
+
+    if not reverse:
+        edges = weighted_graph.edges_of_index(u)  # получить выходящие из вершины ребра
+    else:
+        edges = weighted_graph.reversed_edges_of_index(u)  # получить входящие в вершину ребра
+
+    for we in edges:  # взять исходящие из вершины u ребра
+        if not reverse:
+            vertex = we.v
+        else:
+            vertex = we.u
+        dist_v: float = distances[vertex]
         # Затем исследуются ребра связанные с u и dist_v
         # Это расстояние до всех известных вершины, соединенных ребром с u
 
         # Старого расстояние не существует или найден более короткий путь
-        if dist_v is None or dist_v > dist_u + we.weight:
+        if dist_v is None or dist_v > dist_u + we.weight and arc_flags and we.get_flag(root.k):
             # Меняем расстояние до этой вершины
-            distances[we.v] = dist_u + we.weight
+            distances[vertex] = dist_u + we.weight
             # Заменить ребро на более короткий путь к этой вершине
-            path_dict[we.v] = we
+            path_dict[vertex] = we
             # Перемещаем все вершины с новыми путями в очередь с приоритетом
-            priority_queue.push(DijkstraNode(we.v, distances[we.v]))
+            priority_queue.push(DijkstraNode(vertex, distances[vertex]))
+            if reverse and root is not None:
+                we.set_flag(root.k)
     if visited is not None:
         visited.add(u)  # отметить что вершина посещена
 
 
-def dijkstra(weighted_graph: Graph, root: V) -> tuple[list[float | None], dict[int, Edge]]:
+def dijkstra(weighted_graph: Graph, root: Vertex, reverse=False, arc_flags=False) -> tuple[
+    list[float | None], dict[int, Edge]]:
     """
-    Алгоритм Дейкстры от корня до всех вершин в графе.
-    Получает дерево кратчайших путей до корня
+    Алгоритм Дейкстры от конкретной вершины до всех вершин в графе.
+    Получает дерево кратчайших путей от конкретной вершины
     :param weighted_graph: Взвешенный граф, где осуществить поиск
     :param root: Откуда (из какой вершины) осуществить поиск
+    :param reverse: включить обратный алгоритм Дейкстры
+    :param arc_flags: включить оптимизацию arc_flags
     :return:
     1. Кратчайшие расстояния до остальных вершин (Числа) (переменная distances)
     2. Кратчайшие пути (маршруты) до остальных вершин (переменная path_dict)
@@ -66,7 +87,8 @@ def dijkstra(weighted_graph: Graph, root: V) -> tuple[list[float | None], dict[i
     priority_queue: PriorityQueue[DijkstraNode] = PriorityQueue()
     priority_queue.push(DijkstraNode(first, 0))
     while not priority_queue.empty:  # пока очередь с приоритетом не пустая
-        dijkstra_step(weighted_graph, priority_queue, distances, path_dict)
+        dijkstra_step(weighted_graph, priority_queue, distances, path_dict, reverse=reverse, arc_flags=arc_flags,
+                      root=root)
 
     # Возвращаем расстояние от корневой вершины до каждой и path_dict, что позволяет определить
     # Кратчайшие пути к ним
