@@ -52,16 +52,14 @@ def dijkstra_step(weighted_graph: Graph,
         # Затем исследуются ребра связанные с u и dist_v
         # Это расстояние до всех известных вершины, соединенных ребром с u
 
-        # Условие Дейкстры: старого расстояния не существует или найден более короткий путь
-        dijkstra_condition = (dist_v is None or dist_v > dist_u + we.weight)
-
         # Если включена оптимизация arc_flags
         if arc_flags:
-            # вдобавок к старому условию, получать root.k-ый флаг ребра
-            dijkstra_condition = dijkstra_condition and we.get_flag(end.k)
+            # Если это ребро не находится на
+            if not we.get_flag(end.k):
+                continue
 
-        # Если выполняется условие Дейкстры
-        if dijkstra_condition:
+        # Условие Дейкстры: старого расстояния не существует или найден более короткий путь
+        if dist_v is None or dist_v > dist_u + we.weight:
             # Меняем расстояние до этой вершины
             distances[vertex] = dist_u + we.weight
             # Заменить ребро на более короткий путь к этой вершине
