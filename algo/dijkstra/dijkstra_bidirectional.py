@@ -44,13 +44,13 @@ def dijkstra_bidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, ar
 
     while not queue_start.empty and not queue_end.empty:
         dijkstra_step(weighted_graph, queue_start, distances_start, path_dict_start, visited=visited_start,
-                      arc_flags=arc_flags)
+                      arc_flags=arc_flags, end=end)
         if visited_start & visited_end:  # {A, Z} & {Z, C} = Z
             # Алгоритм завершит свою работу, когда какая-нибудь вершина z
             # будет удалена из обеих очередей.
             break
         dijkstra_step(weighted_graph, queue_end, distances_end, path_dict_end, visited=visited_end, reverse=True,
-                      arc_flags=arc_flags)
+                      arc_flags=arc_flags, end=start)
         if visited_start & visited_end:  # {A, Z} & {Z, C} = Z
             break
 

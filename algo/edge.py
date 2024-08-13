@@ -1,27 +1,23 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 
 class Edge:
-    u: int  # Откуда
-    v: int  # Куда
-    weight: float  # Вес ребра
-
     def __init__(self, u, v, weight, k):
-        self.u = u
-        self.v = v
-        self.weight = weight
-        self._flags = [False] * k
+        self.u = u  # Откуда
+        self.v = v  # Куда
+        self.weight = weight  # Вес ребра
+        self._flags = [False] * k  # Флаги ребра для каждого региона
 
     def reversed(self) -> Edge:
         """ Возвращает обратное ребро """
         return Edge(self.v, self.u, self.weight, len(self._flags))
 
-    def set_flag(self, bit):
-        self._flags[bit] = True
+    def set_flag(self, n):
+        """ Поставить n-ый флаг равным True"""
+        self._flags[n] = True
 
-    def get_flag(self, bit):
+    def get_flag(self, bit) -> bool:
+        """ Получить значение n-ого флага"""
         return self._flags[bit]
 
     def __lt__(self, other: Edge) -> bool:

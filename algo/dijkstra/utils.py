@@ -17,10 +17,12 @@ def path_dict_to_path(start: int, end: int, path_dict: dict[int, Edge], reverse=
     e: Edge = path_dict[end]
     edge_path.append(e)
     if not reverse:
+        # Все ребра прямые
         while e.u != start:
             e = path_dict[e.u]
             edge_path.append(e)
     else:
+        # Все ребра обратные
         while e.v != start:
             e = path_dict[e.v]
             edge_path.insert(0, e)

@@ -16,7 +16,7 @@ class Graph:
         self._edges: List[List[Edge]] = [[] for _ in vertices]  # список исходящих из вершин ребер
         self._reverse_edges: List[List[Edge]] = [[] for _ in vertices]  # список входящих в вершину ребер
 
-        self.K = k
+        self.K = k  # Количество регионов
 
     @property
     def vertex_count(self) -> int:
@@ -34,12 +34,12 @@ class Graph:
         self._edges.append([])  # Добавляем пустой список для ребер
         return self.vertex_count - 1  # Возвращаем индекс по добавленным вершинам
 
-    # Граф ненаправленный, поэтому всегда добавляем вершины в обоих направлениях
     def add_edge(self, edge: Edge) -> None:
         """ Добавить новое ребро """
         self._edges[edge.u].append(edge)  # из u выходит edge
         self._reverse_edges[edge.v].append(edge)  # в v входит edge
-        # граф двунаправленный
+
+        # Нижние строчки отвечают за то, что граф двунаправленный
         # self._edges[edge.v].append(edge.reversed())  # из v выходит reversed edge
         # self._reverse_edges[edge.u].append(edge.reversed())  # в u входит reversed edge
 
