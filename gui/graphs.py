@@ -1,19 +1,19 @@
 """
 Simple example of subclassing GraphItem.
 """
+import dataclasses
 
 # https://groups.google.com/forum/#!topic/pyqtgraph/pTrem1RCKSw
 # https://stackoverflow.com/questions/18867980/pyqtgraph-select-2d-region-of-graph-as-threshold-to-redraw-the-graph
 # https://groups.google.com/forum/#!topic/pyqtgraph/pTrem1RCKSw
 # https://groups.google.com/forum/#!topic/pyqtgraph/dqw_Lip8rNk
 
-# import initExample ## Add path to library (just for examples; you do not need this)
-
 import pyqtgraph as pg
-from PyQt6.QtCore import Qt
 from pyqtgraph.Qt import QtCore, QtGui
 from pyqtgraph.Point import Point
 import numpy as np
+
+from gui.graph_gui import GraphGUI
 
 
 def MultiSelect(newLines, mypoint_index_all, mypoint_edges, mypoints_all_edges, allpoints_neighbornodes, symbolBrushs):
@@ -128,6 +128,9 @@ class Graph(pg.GraphItem):
         self.symbolBrushs_allpoints_neighbornodes = []
         self.mypoint_edges_allpoints = []
 
+    def setDataFromGraph(self, graph: GraphGUI, **kwds):
+        self.setData(**(dataclasses.asdict(graph) | kwds))
+
     def setData(self, **kwds):
         self.text = kwds.pop('text', [])
         self.data = kwds
@@ -135,6 +138,9 @@ class Graph(pg.GraphItem):
             npts = self.data['pos'].shape[0]
             self.data['data'] = np.empty(npts, dtype=[('index', int)])
             self.data['data']['index'] = np.arange(npts)
+        if 'points_colors' in self.data:
+            self.data['symbolBrush'] = [pg.mkBrush(color=color) for color in self.data.get('points_colors')]
+            self.data['symbolPen'] = [pg.mkPen(width=0) for color in self.data.get('points_colors')]
         self.setTexts(self.text)
         self.updateGraph()
 
@@ -151,6 +157,7 @@ class Graph(pg.GraphItem):
         pg.GraphItem.setData(self, **self.data)
         for i, item in enumerate(self.textItems):
             item.setPos(*self.data['pos'][i])
+        self.drawArrows()
 
     def mouseDragEvent(self, ev):
         ev.accept()
@@ -181,20 +188,34 @@ class Graph(pg.GraphItem):
         self.updateGraph()
         ev.accept()
 
+    def drawArrows(self, color='w'):
+        for arrow in getattr(self, 'arrows', []):
+            arrow.scene().removeItem(arrow)
+        self.arrows = []
+
+        for edge in self.data.get('adj', []):
+            start = self.data['pos'][edge[0]]
+            end = self.data['pos'][edge[1]]
+
+            arrow = pg.ArrowItem(pos=end, angle=np.degrees(np.arctan2(-(end[1]-start[1]), end[0]-start[0])) + 180,
+                                 brush=pg.mkBrush(color=color))
+            self.arrows.append(arrow)
+            self.getViewBox().addItem(arrow)
+
     def clicked(self, scatter, pts):
         data_list = scatter.data.tolist()
-        mypoint = [tup for tup in data_list if pts[0] in tup][0]
-        mypoint_index = data_list.index(mypoint)
-        mypoint_edges = [tup for tup in self.data['adj'] if mypoint_index in tup]
+        current_point = [tup for tup in data_list if pts[0] in tup][0]
+        current_point_index = data_list.index(current_point)
+        current_point_edges = [tup for tup in self.data['adj'] if current_point_index in tup]
 
         data = scatter.getData()
         newPos = np.vstack([data[0], data[1]]).transpose()
         newLines = lines.copy()
         symbolBrushs = [None] * len(data[0])
-        symbolBrushs[mypoint_index] = pg.mkBrush(color=(255, 0, 0))
-        for i in range(len(mypoint_edges)):
+        symbolBrushs[current_point_index] = pg.mkBrush(color=(255, 0, 0), width=30, style=QtCore.Qt.PenStyle.SolidLine)
+        for i in range(len(current_point_edges)):
             for j in range(len(adj)):
-                if np.array_equal(adj[j], mypoint_edges[i]):
+                if np.array_equal(adj[j], current_point_edges[i]):
                     break
             index = j
             newLines[index] = (255, 0, 0, 255, 1)
@@ -207,7 +228,7 @@ class Graph(pg.GraphItem):
 # Enable antialiasing for prettier plots
 pg.setConfigOptions(antialias=True)
 w = pg.GraphicsLayoutWidget(show=True)
-w.setWindowTitle('pyqtgraph example: CustomGraphItem')
+w.setWindowTitle('Arc Flags')
 viewbx = MyViewBox()
 w.addItem(viewbx)
 viewbx.setAspectLocked()
@@ -236,7 +257,7 @@ adj = np.array([
 ])
 
 # Define the symbol to use for each node (this is optional)
-symbols = ['o', 'o', 'o', 'o', 'o', 'o']
+symbols = ['*', 'x', 'o', 'o', 'o', 'o']
 
 # Define the line style for each connection (this is optional)
 lines = np.array([
@@ -251,8 +272,19 @@ lines = np.array([
 # Define text to show next to each symbol
 texts = ["Point %d" % i for i in range(6)]
 
+points_colors = [
+    (255, 255, 0),
+    (255, 255, 0),
+    (0, 255, 255),
+    (0, 255, 255),
+    (255, 0, 255),
+    (255, 0, 255),
+]
+
+graph_gui = GraphGUI(pos, adj, points_colors, symbols, texts)
+g.setDataFromGraph(graph_gui, size=1, pxMode=False)
 # Update the graph
-g.setData(pos=pos, adj=adj, pen=lines, size=1, symbol=symbols, pxMode=False, text=texts)
+# g.setData(pos=pos, adj=adj, pen=lines, size=1, symbol=symbols, pxMode=False, text=texts, points_colors=points_colors)
 
 # Start Qt event loop unless running in interactive mode or using pyside.
 if __name__ == '__main__':

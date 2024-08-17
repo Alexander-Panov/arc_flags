@@ -45,12 +45,9 @@ class DijkstraNode:
     distance: float  # расстояние от корня до этой вершины
 
     def __lt__(self, other: DijkstraNode) -> bool:
-        """lt - less than - функция сравнения двух DijkstraNode"""
+        """lt - less than - функция сравнения двух DijkstraNode (self < other)
+        Используется для извлечения вершины с наименьшим расстоянием из очереди с приоритетом"""
         return self.distance < other.distance
-
-    def __eq__(self, other: DijkstraNode) -> bool:
-        """eq - equal - функция сравнения"""
-        return self.distance == other.distance
 
 
 WeightedPath = list[Edge]  # Обозначение WeightedPath (маршрут) как список ребер

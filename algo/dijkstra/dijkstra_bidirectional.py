@@ -67,15 +67,17 @@ def dijkstra_bidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, ar
     best_path = (path_dict_to_path(start_index, connecting_vertex, path_dict_start) +  # start -> z
                  path_dict_to_path(end_index, connecting_vertex, path_dict_end, reverse=True))  # z -> end
 
-    for u in path_dict_start.keys():  # для каждой вершины, для которой существует путь из start
-        for we in weighted_graph.edges_of_index(u):  # для каждого ее ребра (которое состоит из u и v)
+    # ! Кратчайший путь не обязательно пройдёт через вершину connecting_vertex
+    # Перебираем каждую посещенную из start вершину (кроме connecting_vertex) + start_index
+    for u in (visited_start - {connecting_vertex} | {start_index}):
+        for we in weighted_graph.edges_of_index(u):  # для каждого исходящего ребра этой вершины (которое состоит из u и v)
             # Есть ли до конца этого ребра существует путь из end
             if distances_end[we.v] is not None:
                 if arc_flags:  # Включена оптимизация arc flags
                     if not we.get_flag(end.k):  # Если это ребро не лежит на кратчайшем пути в регион вершины end
                         continue  # пропустить его
-                path_length = distances_start[u] + we.weight + distances_end[we.v]
-                if path_length < best_path_length:
+                path_length = distances_start[u] + we.weight + distances_end[we.v]  # считаем продолжительность нового пути через вершину u
+                if path_length < best_path_length:  # Если новый путь короче предыдущего наилучшего пути
                     best_path_length = path_length
                     best_path = (path_dict_to_path(start_index, u, path_dict_start) +  # start -> u
                                  [we] +  # u -> v

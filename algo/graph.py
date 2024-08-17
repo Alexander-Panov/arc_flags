@@ -48,7 +48,7 @@ class Graph:
         self.add_edge(Edge(u, v, weight, self.K))
 
     def add_edge_by_vertices(self, first: Vertex, second: Vertex, weight: float) -> None:
-        """ Добавить ребро между двумя вершинами """
+        """ Добавить ребро между двумя вершинами в графе first и second """
         u: int = self._vertices.index(first)
         v: int = self._vertices.index(second)
         self.add_edge_by_indices(u, v, weight)

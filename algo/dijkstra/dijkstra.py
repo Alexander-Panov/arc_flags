@@ -22,9 +22,9 @@ def dijkstra_step(weighted_graph: Graph,
     :param priority_queue: приоритетная очередь вершин к проверке
     :param distances: уже известные расстояния до вершин к моменту запуска функции
     :param path_dict: уже известный словарь маршрутов к вершинам к моменту запуска функции
-    :param reverse: получать "выходящие" из вершины ребра или "входящие" (по умолчанию "выходящие")
+    :param reverse: рассматривать "выходящие" из вершины ребра или "входящие" (по умолчанию "выходящие")
     :param arc_flags: включить оптимизацию arc_flags
-    :param visited: множество уже посещенных вершин
+    :param visited: множество уже посещенных вершин (None если не нужно отмечать посещенные вершины (для dijkstra, unidirectional_dijkstra)
     :param end: конечная вершина, к который мы ищем путь
     :return: ничего
     """
@@ -43,20 +43,20 @@ def dijkstra_step(weighted_graph: Graph,
     else:
         edges = weighted_graph.reversed_edges_of_index(u)  # получить входящие в вершину ребра
 
-    for we in edges:  # взять исходящие из вершины u ребра
+    for we in edges:  # цикл по полученным ребрам текущей вершины
         if not reverse:
             vertex = we.v
         else:
             vertex = we.u
-        dist_v: float = distances[vertex]
+        dist_v: float = distances[vertex]  # известное расстояние до вершины v
         # Затем исследуются ребра связанные с u и dist_v
         # Это расстояние до всех известных вершины, соединенных ребром с u
 
         # Если включена оптимизация arc_flags
         if arc_flags:
-            # Если это ребро не находится на
+            # Если это ребро не находится на пути в нужный регион вершины
             if not we.get_flag(end.k):
-                continue
+                continue   # ребро не рассматриваем
 
         # Условие Дейкстры: старого расстояния не существует или найден более короткий путь
         if dist_v is None or dist_v > dist_u + we.weight:

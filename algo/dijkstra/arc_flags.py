@@ -13,10 +13,10 @@ def arc_flags_preprocessing(weighted_graph: Graph):
     for vertex in weighted_graph._vertices:  # для каждой вершины графа
         vertex_index = weighted_graph.index_of(vertex)
 
-        # вызвать обратный алгоритм Дейкстры
+        # вызвать обратный алгоритм Дейкстры - дерево кратчайших путей
         distances, path_dict = dijkstra(weighted_graph, vertex, True)
 
-        # Для каждой вершины из дерева кратчайших путей
+        # Для каждой вершины из дерева кратчайших путей (из которых есть путь в vertex)
         for vertex2_index in path_dict.keys():
             # Получить маршрут до вершины vertex по дереву кратчайших путей
             path = path_dict_to_path(vertex_index, vertex2_index, path_dict, reverse=True)

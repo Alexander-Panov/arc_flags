@@ -32,7 +32,7 @@ def dijkstra_unidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, a
     while not priority_queue.empty:  # пока очередь с приоритетом не пустая
         dijkstra_step(weighted_graph, priority_queue, distances, path_dict, arc_flags=arc_flags, end=end)
 
-    distance = distances[end_index]  # получить расстояние до end
+    distance = distances[end_index]  # получить расстояние конкретно до end
 
     path: WeightedPath = path_dict_to_path(start_index, end_index, path_dict)
 
