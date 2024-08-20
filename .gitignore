@@ -1,4 +1,4 @@
-.idea
-.venv
-algo/__pycache__
-gui/__pycache__
+/.idea
+/.venv
+/algo/__pycache__
+/gui/__pycache__
