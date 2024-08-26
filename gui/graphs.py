@@ -3,8 +3,17 @@ import sys
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog
+from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtGui import QAction, QPixmap, QColor, QIcon
+from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog, QMenu, QColorDialog, QDialog, QVBoxLayout, \
+    QPushButton
+
+
+class CustomViewBox(pg.ViewBox):
+    def __init__(self, graph, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.graph = graph
+        self.addItem(self.graph)
 
 
 class Graph(pg.GraphItem):
@@ -16,7 +25,8 @@ class Graph(pg.GraphItem):
         super().__init__(**kwargs)
         self.points_colors = []
 
-        self.scatter.sigClicked.connect(self.clicked)
+        # self.scatter.sigClicked.connect(self.clicked)
+        self.scatter.sigClicked.connect(self.handle_click)
 
     def setData(self, **kwargs):
         self.data = kwargs
@@ -29,6 +39,7 @@ class Graph(pg.GraphItem):
         if self.points_colors:
             self.data['symbolBrush'] = [pg.mkBrush(color=color) for color in self.points_colors]
             self.data['symbolPen'] = [pg.mkPen(width=0) for _ in self.points_colors]
+        self.data['pen'] = pg.mkPen(width=5)
         self.setTexts(self.texts)
         self.updateGraph()
 
@@ -86,13 +97,76 @@ class Graph(pg.GraphItem):
                 end = self.pos[edge[1]]
 
                 arrow = pg.ArrowItem(pos=end,
-                                     angle=np.degrees(np.arctan2(-(end[1] - start[1]), end[0] - start[0])) + 180,
-                                     brush=pg.mkBrush(color=color))
+                                     angle=np.degrees(np.arctan2((end[1] - start[1]), end[0] - start[0])) + 180,
+                                     brush=pg.mkBrush(color=color),
+                                     headLen=0.7,
+                                     pxMode=False)
                 self.arrows.append(arrow)
                 self.getViewBox().addItem(arrow)
 
     def clicked(self, pts):
         print("clicked: %s" % pts)
+
+    def handle_click(self, scatter, points, event):
+        self.show_context_menu(scatter, points, event)
+
+    def show_context_menu(self, scatter, points, event):
+        if points:
+            context_menu = QMenu()
+            # Действие "Удалить вершину"
+            delete_action = QAction("Удалить вершину", context_menu)
+            delete_action.triggered.connect(lambda: self.remove_vertex(points[0]))
+            context_menu.addAction(delete_action)
+
+            # Действие "Перекрасить вершину"
+            color_menu = QMenu("Перекрасить вершину", context_menu)
+            context_menu.addMenu(color_menu)
+
+            # Добавление опций цветов в подменю
+            colors = {
+                'Красный': (255, 0, 0),
+                'Зеленый': (0, 255, 0),
+                'Синий': (0, 0, 255),
+                'Голубой': (0, 255, 255),
+                'Розовый': (255, 0, 255),
+                'Желтый': (255, 255, 0),
+                'Черный': (0, 0, 0),
+                'Белый': (255, 255, 255)
+            }
+
+            for color_name, rgb in colors.items():
+                color_action = QAction(color_name.capitalize(), color_menu)
+                pixmap = QPixmap(16, 16)
+                pixmap.fill(QColor(*rgb))
+                color_action.setIcon(QIcon(pixmap))
+                color_action.triggered.connect(lambda _, c=rgb: self.recolor_vertex(points[0], c))
+                color_menu.addAction(color_action)
+
+            context_menu.exec(event.screenPos().toPoint())
+
+    def remove_vertex(self, point):
+        index = int(point.data()[0])
+        self.pos = np.delete(self.pos, index, axis=0)
+        self.texts.pop(index)
+        self.points_colors.pop(index)
+
+        # Удаляем все ребра, связанные с данной вершиной
+        self.adjacency = np.array([edge for edge in self.adjacency if index not in edge])
+
+        # Обновляем индексы в ребрах после удаления вершины
+        self.adjacency = np.array([[i if i < index else i - 1 for i in edge] for edge in self.adjacency])
+
+        # Обновляем граф
+        self.setData(pos=self.pos, adj=self.adjacency, points_colors=self.points_colors, texts=self.texts, size=1,
+                     pxMode=False)
+
+    def recolor_vertex(self, point, color):
+        index = int(point.data()[0])
+
+        # Обновляем цвет вершины
+        self.points_colors[index] = color
+        self.setData(pos=self.pos, adj=self.adjacency, points_colors=self.points_colors, texts=self.texts, size=1,
+                     pxMode=False)
 
 
 class MainWindow(QMainWindow):
@@ -104,12 +178,11 @@ class MainWindow(QMainWindow):
         # Enable antialiasing for prettier plots
         pg.setConfigOptions(antialias=True)
 
-        self.viewbx = pg.ViewBox()
+        self.graph = Graph()
+
+        self.viewbx = CustomViewBox(graph=self.graph, enableMenu=False)
         self.graph_widget.addItem(self.viewbx)
         self.viewbx.setAspectLocked()
-
-        self.graph = Graph()
-        self.viewbx.addItem(self.graph)
 
         # Define positions of nodes
         pos = np.array([
@@ -149,6 +222,10 @@ class MainWindow(QMainWindow):
                            pxMode=False)
         self.initUI()
 
+        # Add context menu
+        self.graph_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.graph_widget.customContextMenuRequested.connect(self.show_context_menu)
+
     def initUI(self):
         menubar = self.menuBar()
 
@@ -164,6 +241,31 @@ class MainWindow(QMainWindow):
         import_action = QAction('Import Graph', self)
         import_action.triggered.connect(self.import_graph)
         fileMenu.addAction(import_action)
+
+    def show_context_menu(self, pos):
+        context_menu = QMenu(self)
+
+        # Add vertex action
+        add_vertex_action = QAction('Добавить вершину', self)
+        add_vertex_action.triggered.connect(lambda: self.add_vertex(pos))
+        context_menu.addAction(add_vertex_action)
+
+        context_menu.exec(self.mapToGlobal(pos))
+
+    def add_vertex(self, pos):
+        view_pos = self.viewbx.mapSceneToView(QPointF(pos))
+        new_pos = np.array([view_pos.x(), view_pos.y()])
+
+        # Add new position to the existing ones
+        self.graph.pos = np.vstack([self.graph.pos, new_pos])
+
+        # Optionally, add a default text and color for the new vertex
+        self.graph.texts.append(f"Point {len(self.graph.pos) - 1}")
+        self.graph.points_colors.append((255, 255, 255))  # Default color (white)
+
+        # Update the graph with the new vertex
+        self.graph.setData(pos=self.graph.pos, adj=self.graph.adjacency, points_colors=self.graph.points_colors,
+                           texts=self.graph.texts, size=1, pxMode=False)
 
     def export_graph(self):
         file_name, _ = QFileDialog.getSaveFileName(self, "Save Graph", "", "JSON Files (*.json);;All Files (*)")
