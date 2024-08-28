@@ -5,8 +5,7 @@ import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QAction, QPixmap, QColor, QIcon
-from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog, QMenu, QColorDialog, QDialog, QVBoxLayout, \
-    QPushButton
+from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog, QMenu
 
 
 class CustomViewBox(pg.ViewBox):
@@ -21,12 +20,17 @@ class Graph(pg.GraphItem):
         self.textItems = []
         self.texts = []
         self.arrows = []
+        self.edges = []  # Список графических элементов рёбер
 
         super().__init__(**kwargs)
         self.points_colors = []
 
-        # self.scatter.sigClicked.connect(self.clicked)
-        self.scatter.sigClicked.connect(self.handle_click)
+        self.dragging_edge = False  # Флаг, показывающий, что идёт добавление ребра
+        self.start_vertex = None  # Начальная вершина для ребра
+        self.temp_arrow = None  # Временная стрелка, которую пользователь тянет
+        self.temp_line = None
+
+        self.scatter.sigClicked.connect(self.scatter_right_click)
 
     def setData(self, **kwargs):
         self.data = kwargs
@@ -87,6 +91,15 @@ class Graph(pg.GraphItem):
         self.updateGraph()
         ev.accept()
 
+    def hoverEvent(self, ev):
+        if self.dragging_edge and self.temp_arrow:
+            # Обновление временной стрелки, которая следует за курсором
+            self.update_temp_line_arrow(ev.pos())
+
+    def mouseClickEvent(self, ev):
+        if self.dragging_edge:
+            self.finish_adding_edge(None)
+
     def drawArrows(self, color='w'):
         for arrow in self.arrows:
             arrow.scene().removeItem(arrow)
@@ -104,14 +117,10 @@ class Graph(pg.GraphItem):
                 self.arrows.append(arrow)
                 self.getViewBox().addItem(arrow)
 
-    def clicked(self, pts):
-        print("clicked: %s" % pts)
-
-    def handle_click(self, scatter, points, event):
-        self.show_context_menu(scatter, points, event)
-
-    def show_context_menu(self, scatter, points, event):
-        if points:
+    def scatter_right_click(self, scatter, points, event):
+        if points and self.dragging_edge:
+            self.finish_adding_edge(points[0])
+        elif points and not self.dragging_edge:
             context_menu = QMenu()
             # Действие "Удалить вершину"
             delete_action = QAction("Удалить вершину", context_menu)
@@ -142,7 +151,55 @@ class Graph(pg.GraphItem):
                 color_action.triggered.connect(lambda _, c=rgb: self.recolor_vertex(points[0], c))
                 color_menu.addAction(color_action)
 
+            # Действие "Добавить ребро"
+            add_edge_action = QAction("Добавить ребро", context_menu)
+            add_edge_action.triggered.connect(lambda: self.start_adding_edge(points[0]))
+            context_menu.addAction(add_edge_action)
+
             context_menu.exec(event.screenPos().toPoint())
+
+    def update_temp_line_arrow(self, end_pos):
+        # Обновляем временную стрелку, которая следует за курсором
+        start_pos = self.start_vertex.pos()
+        angle = np.degrees(
+            np.arctan2((end_pos.y() - start_pos.x()), end_pos.x() - start_pos.y())) + 180
+        self.temp_arrow.setPos(end_pos)
+        self.temp_arrow.setStyle(angle=angle)
+
+        self.temp_line.setData([start_pos.x(), end_pos.x()], [start_pos.y(), end_pos.y()])
+
+    def start_adding_edge(self, start_vertex):
+        self.dragging_edge = True
+        self.start_vertex = start_vertex
+
+        self.temp_arrow = pg.ArrowItem(angle=0, brush=pg.mkBrush('w'), headLen=0.7, pxMode=False)
+        self.getViewBox().addItem(self.temp_arrow)
+        self.temp_line = pg.PlotCurveItem(pen=pg.mkPen(width=5))
+        self.getViewBox().addItem(self.temp_line)
+
+        self.update_temp_line_arrow(self.start_vertex.pos())
+
+    def finish_adding_edge(self, end_vertex):
+        if end_vertex is not None and end_vertex != self.start_vertex:
+            self.add_edge(self.start_vertex, end_vertex)
+
+        # Убираем временную стрелку и сбрасываем флаг добавления ребра
+        self.getViewBox().removeItem(self.temp_arrow)
+        self.getViewBox().removeItem(self.temp_line)
+
+        self.dragging_edge = False
+        self.start_vertex = None
+        self.temp_arrow = None
+
+    def add_edge(self, start_vertex, end_vertex):
+        start_index = int(start_vertex.data()[0])
+        end_index = int(end_vertex.data()[0])
+
+        # Проверка, что такое ребро еще не существует
+        if not any((edge == [start_index, end_index]).all() for edge in self.adjacency):
+            self.adjacency = np.vstack([self.adjacency, [start_index, end_index]])
+            self.setData(pos=self.pos, adj=self.adjacency, points_colors=self.points_colors, texts=self.texts, size=1,
+                         pxMode=False)
 
     def remove_vertex(self, point):
         index = int(point.data()[0])
