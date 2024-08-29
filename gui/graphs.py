@@ -299,6 +299,18 @@ class MainWindow(QMainWindow):
         import_action.triggered.connect(self.import_graph)
         fileMenu.addAction(import_action)
 
+        # Создание меню Run
+        runMenu = menubar.addMenu('Run')
+
+        # Добавление опций "Unidirectional" и "Bidirectional"
+        unidirectional_action = QAction('Unidirectional', self)
+        unidirectional_action.triggered.connect(lambda: self.start_shortest_path('unidirectional'))
+        runMenu.addAction(unidirectional_action)
+
+        bidirectional_action = QAction('Bidirectional', self)
+        bidirectional_action.triggered.connect(lambda: self.start_shortest_path('bidirectional'))
+        runMenu.addAction(bidirectional_action)
+
     def show_context_menu(self, pos):
         context_menu = QMenu(self)
 

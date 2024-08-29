@@ -27,3 +27,6 @@ class Edge:
     def __str__(self) -> str:
         """ Показать вершину красиво в консоли """
         return f"{self.u} -> {self.v}"
+
+    def __repr__(self) -> str:
+        return f"{str(self)}"

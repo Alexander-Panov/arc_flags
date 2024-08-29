@@ -38,9 +38,11 @@ def distance_array_to_vertex_dict(wg: Graph, distances: list[float | None]) -> d
 
 def print_weighted_path(wg: Graph, path: WeightedPath) -> None:
     """Красиво вывести в консоль маршрут"""
+    edge = None
     for edge in path:
-        print(f'{wg.vertex_at(edge.u)} -{edge.weight}-> {wg.vertex_at(edge.v)}')
-    print(f'Суммарный вес: {total_weight(path)}')
+        print(f'{wg.vertex_at(edge.u)} -{edge.weight}-> ', end='')
+    print(f'{wg.vertex_at(edge.v)}.', end=' ')
+    print(f'(Суммарный вес: {total_weight(path)})')
 
 
 def total_weight(wp: WeightedPath) -> int:

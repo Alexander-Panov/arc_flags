@@ -16,9 +16,9 @@ def clock(func=None, *, verbose=False):
             arg_lst = [repr(arg) for arg in args]
             arg_lst.extend(f'{k}={v!r}' for k, v in kwargs.items())
             arg_str = ', '.join(arg_lst)
-            print(f'[{elapsed:.8f}s] {name}({arg_str}) -> {result!r}')
+            print(f'Замер скорости функции "{name}({arg_str}) -> {result!r}": [{elapsed:.8f}s]')
         else:
-            print(f'[{elapsed:.8f}s] {name}')
+            print(f'Замер скорости функции "{name}": [{elapsed:.8f}s]')
         return result
 
     return clocked

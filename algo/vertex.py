@@ -8,7 +8,7 @@ class Vertex:
 
     def __str__(self) -> str:
         """ Показать имя в консоли """
-        return self.id
+        return f"{self.id} (регион {self.k})"
 
     def __repr__(self) -> str:
         return self.id

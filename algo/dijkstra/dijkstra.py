@@ -1,6 +1,7 @@
 """ Алгоритм Дейкстры """
 from __future__ import annotations
 
+from algo.config import DEBUG
 from algo.dijkstra.structures import PriorityQueue, DijkstraNode
 from algo.edge import Edge
 from algo.graph import Graph
@@ -43,7 +44,13 @@ def dijkstra_step(weighted_graph: Graph,
     else:
         edges = weighted_graph.reversed_edges_of_index(u)  # получить входящие в вершину ребра
 
+    if DEBUG:
+        print(f"\tИсследуем вершину: {u}")
+        print(f"\tИсследуемые ребра: {edges}")
+
     for we in edges:  # цикл по полученным ребрам текущей вершины
+        if DEBUG:
+            print(f"\t\tРЕБРО {we}:")
         if not reverse:
             vertex = we.v
         else:
@@ -56,6 +63,8 @@ def dijkstra_step(weighted_graph: Graph,
         if arc_flags:
             # Если это ребро не находится на пути в нужный регион вершины
             if not we.get_flag(end.k):
+                if DEBUG:
+                    print(f"\t\t(оптимизация arc flags) ребро пропущено, так не содержится в кратчайшим пути до региона '{end.k}'")
                 continue   # ребро не рассматриваем
 
         # Условие Дейкстры: старого расстояния не существует или найден более короткий путь
@@ -66,8 +75,16 @@ def dijkstra_step(weighted_graph: Graph,
             path_dict[vertex] = we
             # Перемещаем все вершины с новыми путями в очередь с приоритетом
             priority_queue.push(DijkstraNode(vertex, distances[vertex]))
+
+            if DEBUG:
+                print(f"\t\t! Найдена более короткий путь до вершины {vertex}")
+                print(f"\t\tСтарое расстояние: {dist_v}")
+                print(f"\t\tНовое расстояние: {dist_u + we.weight}")
+                print(f"\t\tВершина {vertex} добавлена в очередь с приоритетом")
         else:
             # Если не выполняется условие - ребро не рассматриваем
+            if DEBUG:
+                print(f"\t\t Ребро не дает путь короче, отбрасываем")
             pass
     if visited is not None:
         visited.add(u)  # отметить что вершина посещена

@@ -1,9 +1,9 @@
+from algo.config import DEBUG
 from algo.dijkstra.arc_flags import arc_flags_preprocessing
 from algo.dijkstra.dijkstra_bidirectional import dijkstra_bidirectional
 from algo.dijkstra.dijkstra_unidirectional import dijkstra_unidirectional
-from algo.dijkstra.utils import print_weighted_path
+from algo.graph import Graph
 from algo.vertex import Vertex
-from graph import Graph
 
 if __name__ == '__main__':
     K = 3  # Количество регионов
@@ -61,18 +61,22 @@ if __name__ == '__main__':
 
     arc_flags_preprocessing(city_graph)
 
-    print("\nОднонаправленный поиск:")
-    distance, path = dijkstra_unidirectional(city_graph, los_angeles, boston, arc_flags=False)
-    print("Оптимизация arc_flags:")
-    dijkstra_unidirectional(city_graph, los_angeles, boston, arc_flags=True)
-    print("Кратчайший путь из Los Angeles в Boston:")
-    print_weighted_path(city_graph, path)
+    if DEBUG:
+        print("\n\n*** Визуализация флагов ребер ***")
+        print("|  РЕБРО   | 0 | 1 | 2 |")
+        for list_edges in city_graph._edges:
+            for edge in list_edges:
+                flags = edge._flags
+                print(f"|{str(edge): ^10}| {flags[0] * 1} | {flags[1] * 1} | {flags[2] * 1 } |")
 
-    print("\nДвунаправленный поиск:")
+    print("\n\n*** Однонаправленный поиск (без оптимизации arc_flags): ***")
+    distance, path = dijkstra_unidirectional(city_graph, los_angeles, boston, arc_flags=False)
+    print("\n*** Однонаправленный поиск (с оптимизацией arc_flags): ***")
+    dijkstra_unidirectional(city_graph, los_angeles, boston, arc_flags=True)
+
+    print("\n\n*** Двунаправленный поиск (без оптимизации arc_flags): ***")
     distance, path = dijkstra_bidirectional(city_graph, los_angeles, boston, arc_flags=False)
-    print("Оптимизация arc_flags:")
+    print("\n*** Двунаправленный поиск (с оптимизацией arc_flags): ***")
     dijkstra_bidirectional(city_graph, los_angeles, boston, arc_flags=True)
-    print("Кратчайший путь из Los Angeles в Boston:")
-    print_weighted_path(city_graph, path)
 
 

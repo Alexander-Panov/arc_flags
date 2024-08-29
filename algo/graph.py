@@ -1,9 +1,9 @@
 from functools import reduce
 from operator import add
-from typing import TypeVar, Generic, List, Tuple
+from typing import List, Tuple
 
+from algo.edge import Edge
 from algo.vertex import Vertex
-from edge import Edge
 
 
 class Graph:
