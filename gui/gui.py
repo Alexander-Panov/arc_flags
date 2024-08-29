@@ -104,11 +104,28 @@ class Graph(pg.GraphItem):
         for arrow in self.arrows:
             arrow.scene().removeItem(arrow)
         self.arrows = []
+
+        # Удаляем предыдущие графические элементы рёбер
+        for edge in self.edges:
+            self.getViewBox().removeItem(edge)
+        self.edges = []
+
         if self.adjacency is not None:
             for edge in self.adjacency:
                 start = self.pos[edge[0]]
                 end = self.pos[edge[1]]
 
+                # Создание графического элемента для ребра
+                line = pg.PlotCurveItem([start[0], end[0]], [start[1], end[1]], pen=pg.mkPen(width=5), clickable=True)
+                # Добавление события нажатия на ребро
+                line.sigClicked.connect(self.edge_right_click)
+
+                self.getViewBox().addItem(line)
+                self.edges.append(line)
+        if self.adjacency is not None:
+            for edge in self.adjacency:
+                start = self.pos[edge[0]]
+                end = self.pos[edge[1]]
                 arrow = pg.ArrowItem(pos=end,
                                      angle=np.degrees(np.arctan2((end[1] - start[1]), end[0] - start[0])) + 180,
                                      brush=pg.mkBrush(color=color),
@@ -161,8 +178,7 @@ class Graph(pg.GraphItem):
     def update_temp_line_arrow(self, end_pos):
         # Обновляем временную стрелку, которая следует за курсором
         start_pos = self.start_vertex.pos()
-        angle = np.degrees(
-            np.arctan2((end_pos.y() - start_pos.x()), end_pos.x() - start_pos.y())) + 180
+        angle = np.degrees(np.arctan2((end_pos.y() - start_pos.y()), end_pos.x() - start_pos.x())) + 180
         self.temp_arrow.setPos(end_pos)
         self.temp_arrow.setStyle(angle=angle)
 
@@ -190,6 +206,29 @@ class Graph(pg.GraphItem):
         self.dragging_edge = False
         self.start_vertex = None
         self.temp_arrow = None
+
+    def edge_right_click(self, line, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Контекстное меню для удаления ребра
+            context_menu = QMenu()
+            delete_action = QAction("Удалить ребро", context_menu)
+            delete_action.triggered.connect(lambda: self.remove_edge(line))
+            context_menu.addAction(delete_action)
+            context_menu.exec(event.screenPos().toPoint())
+
+    def remove_edge(self, line):
+        # Удаление графического элемента ребра
+        self.getViewBox().removeItem(line)
+
+        # Удаление ребра из списка рёбер
+        if line in self.edges:
+            index = self.edges.index(line)
+            self.edges.pop(index)
+            # Также удаляем ребро из списка смежности
+            self.adjacency = np.delete(self.adjacency, index, axis=0)
+            # Обновляем граф без удалённого ребра
+            self.setData(pos=self.pos, adj=self.adjacency, points_colors=self.points_colors, texts=self.texts, size=1,
+                         pxMode=False)
 
     def add_edge(self, start_vertex, end_vertex):
         start_index = int(start_vertex.data()[0])
