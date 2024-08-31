@@ -360,22 +360,23 @@ class GraphGUI(pg.GraphItem):
         self.setData(**(self.data | {"points_colors": self.points_colors}))
 
     def highlight_path(self, path: WeightedPath):
-        edge = None
-        self.data['edgePen'] = [pg.mkPen(width=0) for _ in self.adjacency]
-        for edge in path:
-            self.data['symbolPen'][edge.u] = pg.mkPen(width=5, color=DARK_GREEN)
-            edge_arr = np.array([edge.u, edge.v])
-            edge_ind = None
-            for i, row in enumerate(self.adjacency):
-                if np.array_equal(row, edge_arr):
-                    edge_ind = i
-                    break
+        if path:
+            edge = None
+            self.data['edgePen'] = [pg.mkPen(width=0) for _ in self.adjacency]
+            for edge in path:
+                self.data['symbolPen'][edge.u] = pg.mkPen(width=5, color=DARK_GREEN)
+                edge_arr = np.array([edge.u, edge.v])
+                edge_ind = None
+                for i, row in enumerate(self.adjacency):
+                    if np.array_equal(row, edge_arr):
+                        edge_ind = i
+                        break
 
-            self.data['edgePen'][edge_ind] = pg.mkPen(width=5, color=DARK_GREEN)
-            self.data['arrowBrush'][edge_ind] = pg.mkBrush(color=DARK_GREEN)
+                self.data['edgePen'][edge_ind] = pg.mkPen(width=5, color=DARK_GREEN)
+                self.data['arrowBrush'][edge_ind] = pg.mkBrush(color=DARK_GREEN)
 
-        self.data['symbolPen'][edge.v] = pg.mkPen(width=5, color=DARK_GREEN)
-        self.updateGraph()
+            self.data['symbolPen'][edge.v] = pg.mkPen(width=5, color=DARK_GREEN)
+            self.updateGraph()
 
     def show_flags(self, line):
         line_ind = self.edges.index(line)
@@ -512,8 +513,8 @@ class MainWindow(QMainWindow):
         # Подсказка: выберите начальную вершину
         self.statusBar().showMessage("1. Выберите начальную вершину (или нажмите на поле чтобы отменить)")
 
-        self.graph.find_method = mode  # Сохранение выбранного режима
         self.graph.arc_flags = arc_flags
+        self.graph.find_method = mode  # Сохранение выбранного режима
 
     def run_algorithm(self):
         # Запуск алгоритма в отдельном потоке

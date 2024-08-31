@@ -2,6 +2,7 @@ from algo.config import DEBUG
 from algo.dijkstra.arc_flags import arc_flags_preprocessing
 from algo.dijkstra.dijkstra_bidirectional import dijkstra_bidirectional
 from algo.dijkstra.dijkstra_unidirectional import dijkstra_unidirectional
+from algo.dijkstra.utils import print_weighted_path
 from algo.graph import Graph
 from algo.vertex import Vertex
 
@@ -73,10 +74,13 @@ if __name__ == '__main__':
     distance, path = dijkstra_unidirectional(city_graph, los_angeles, boston, arc_flags=False)
     print("\n*** Однонаправленный поиск (с оптимизацией arc_flags): ***")
     dijkstra_unidirectional(city_graph, los_angeles, boston, arc_flags=True)
+    print("Кратчайший путь из Los Angeles в Boston:")
+    print_weighted_path(city_graph, path)
 
     print("\n\n*** Двунаправленный поиск (без оптимизации arc_flags): ***")
     distance, path = dijkstra_bidirectional(city_graph, los_angeles, boston, arc_flags=False)
     print("\n*** Двунаправленный поиск (с оптимизацией arc_flags): ***")
     dijkstra_bidirectional(city_graph, los_angeles, boston, arc_flags=True)
-
+    print("Кратчайший путь из Los Angeles в Boston:")
+    print_weighted_path(city_graph, path)
 
