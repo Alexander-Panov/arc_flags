@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import json
 import sys
+import time
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QPixmap, QColor, QIcon
-from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog, QMenu
+from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog, QMenu, QMessageBox
+from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent, HoverEvent
 
 
 class CustomViewBox(pg.ViewBox):
@@ -15,36 +19,44 @@ class CustomViewBox(pg.ViewBox):
         self.addItem(self.graph)
 
 
+DARK_GREEN = (0, 100, 0)
+
+
 class Graph(pg.GraphItem):
-    def __init__(self, **kwargs):
+    def __init__(self, main_window: MainWindow, **kwargs):
+        self.data = {}
+        self.main_window = main_window
         self.textItems = []
         self.texts = []
+        self.points_colors = []
         self.arrows = []
         self.edges = []  # Список графических элементов рёбер
 
         super().__init__(**kwargs)
-        self.points_colors = []
 
         self.dragging_edge = False  # Флаг, показывающий, что идёт добавление ребра
         self.start_vertex = None  # Начальная вершина для ребра
         self.temp_arrow = None  # Временная стрелка, которую пользователь тянет
         self.temp_line = None
 
+        self.find_method = None  # Сохранение выбранного режима поиска
+        # Добавление переменных для начальной и конечной вершин
+        self.start_vertex = None
+        self.end_vertex = None
+
         self.scatter.sigClicked.connect(self.scatter_right_click)
 
     def setData(self, **kwargs):
         self.data = kwargs
-        self.texts = self.data.pop('texts', [])
-        self.points_colors = self.data.pop('points_colors', [])
-        if 'pos' in self.data:
-            npts = self.data['pos'].shape[0]
-            self.data['data'] = np.empty(npts, dtype=[('index', int)])
-            self.data['data']['index'] = np.arange(npts)
-        if self.points_colors:
+        if 'texts' in self.data:
+            self.texts = self.data.pop('texts', [])
+            self.setTexts(self.texts)
+        if 'points_colors' in self.data:
+            self.points_colors = self.data.pop('points_colors')
             self.data['symbolBrush'] = [pg.mkBrush(color=color) for color in self.points_colors]
             self.data['symbolPen'] = [pg.mkPen(width=0) for _ in self.points_colors]
+
         self.data['pen'] = pg.mkPen(width=5)
-        self.setTexts(self.texts)
         self.updateGraph()
 
     def setTexts(self, text):
@@ -60,6 +72,7 @@ class Graph(pg.GraphItem):
         super().setData(**self.data)
         for i, item in enumerate(self.textItems):
             item.setPos(*self.pos[i])
+        self.scatter.setAcceptHoverEvents(True)
         self.drawArrows()
 
     def mouseDragEvent(self, ev):
@@ -76,7 +89,7 @@ class Graph(pg.GraphItem):
                 ev.ignore()
                 return
             self.dragPoint = pts[0]
-            ind = pts[0].data()[0]
+            ind = int(self.dragPoint.index())
             self.dragOffset = self.pos[ind] - pos
         if ev.isFinish():
             self.dragPoint = None
@@ -86,7 +99,7 @@ class Graph(pg.GraphItem):
                 ev.ignore()
                 return
 
-        ind = self.dragPoint.data()[0]
+        ind = int(self.dragPoint.index())
         self.data['pos'][ind] = ev.pos() + self.dragOffset
         self.updateGraph()
         ev.accept()
@@ -96,9 +109,32 @@ class Graph(pg.GraphItem):
             # Обновление временной стрелки, которая следует за курсором
             self.update_temp_line_arrow(ev.pos())
 
-    def mouseClickEvent(self, ev):
-        if self.dragging_edge:
-            self.finish_adding_edge(None)
+    def mouseClickEvent(self, event: MouseClickEvent):
+        """ Сброс всех режимов """
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self.dragging_edge:
+                self.finish_adding_edge(None)
+            if self.find_method:
+                self.reset_find()
+        elif event.button() == Qt.MouseButton.RightButton:
+            context_menu = QMenu()
+
+            # Add vertex action
+            add_vertex_action = QAction('Добавить вершину', self)
+            add_vertex_action.triggered.connect(lambda: self.add_vertex(event.pos()))
+            context_menu.addAction(add_vertex_action)
+
+            context_menu.exec(event.screenPos().toPoint())
+
+    def reset_find(self):
+        self.main_window.statusBar().clearMessage()
+        self.data['symbolPen'] = [pg.mkPen(width=0) for _ in self.points_colors]
+
+        self.find_method = None
+        self.start_vertex = None
+        self.end_vertex = None
+
+        self.updateGraph()
 
     def drawArrows(self, color='w'):
         for arrow in self.arrows:
@@ -118,7 +154,7 @@ class Graph(pg.GraphItem):
                 # Создание графического элемента для ребра
                 line = pg.PlotCurveItem([start[0], end[0]], [start[1], end[1]], pen=pg.mkPen(width=5), clickable=True)
                 # Добавление события нажатия на ребро
-                line.sigClicked.connect(self.edge_right_click)
+                line.sigClicked.connect(self.edge_click)
 
                 self.getViewBox().addItem(line)
                 self.edges.append(line)
@@ -135,45 +171,60 @@ class Graph(pg.GraphItem):
                 self.getViewBox().addItem(arrow)
 
     def scatter_right_click(self, scatter, points, event):
-        if points and self.dragging_edge:
-            self.finish_adding_edge(points[0])
-        elif points and not self.dragging_edge:
-            context_menu = QMenu()
-            # Действие "Удалить вершину"
-            delete_action = QAction("Удалить вершину", context_menu)
-            delete_action.triggered.connect(lambda: self.remove_vertex(points[0]))
-            context_menu.addAction(delete_action)
+        if points:
+            if self.find_method:
+                if self.start_vertex is None:
+                    self.start_vertex = points[0]
+                    self.data['symbolPen'][int(self.start_vertex.index())] = pg.mkPen(width=5, color=DARK_GREEN)
+                    self.updateGraph()
 
-            # Действие "Перекрасить вершину"
-            color_menu = QMenu("Перекрасить вершину", context_menu)
-            context_menu.addMenu(color_menu)
+                    self.main_window.statusBar().showMessage(
+                        "2. Выберите конечную вершину (или нажмите на поле чтобы отменить)")
+                elif self.end_vertex is None:
+                    self.end_vertex = points[0]
+                    self.data['symbolPen'][int(self.end_vertex.index())] = pg.mkPen(width=5, color=DARK_GREEN)
+                    self.updateGraph()
 
-            # Добавление опций цветов в подменю
-            colors = {
-                'Красный': (255, 0, 0),
-                'Зеленый': (0, 255, 0),
-                'Синий': (0, 0, 255),
-                'Голубой': (0, 255, 255),
-                'Розовый': (255, 0, 255),
-                'Желтый': (255, 255, 0),
-                'Черный': (0, 0, 0),
-                'Белый': (255, 255, 255)
-            }
+                    self.main_window.statusBar().showMessage("Запуск алгоритма")
+                    self.main_window.run_algorithm()
+            elif self.dragging_edge:
+                self.finish_adding_edge(points[0])
+            elif not self.dragging_edge:
+                context_menu = QMenu()
+                # Действие "Удалить вершину"
+                delete_action = QAction("Удалить вершину", context_menu)
+                delete_action.triggered.connect(lambda: self.remove_vertex(points[0]))
+                context_menu.addAction(delete_action)
 
-            for color_name, rgb in colors.items():
-                color_action = QAction(color_name.capitalize(), color_menu)
-                pixmap = QPixmap(16, 16)
-                pixmap.fill(QColor(*rgb))
-                color_action.setIcon(QIcon(pixmap))
-                color_action.triggered.connect(lambda _, c=rgb: self.recolor_vertex(points[0], c))
-                color_menu.addAction(color_action)
+                # Действие "Перекрасить вершину"
+                color_menu = QMenu("Перекрасить вершину", context_menu)
+                context_menu.addMenu(color_menu)
 
-            # Действие "Добавить ребро"
-            add_edge_action = QAction("Добавить ребро", context_menu)
-            add_edge_action.triggered.connect(lambda: self.start_adding_edge(points[0]))
-            context_menu.addAction(add_edge_action)
+                # Добавление опций цветов в подменю
+                colors = {
+                    'Красный': (255, 0, 0),
+                    'Зеленый': (0, 255, 0),
+                    'Синий': (0, 0, 255),
+                    'Голубой': (0, 255, 255),
+                    'Розовый': (255, 0, 255),
+                    'Желтый': (255, 255, 0),
+                    'Черный': (0, 0, 0),
+                    'Белый': (255, 255, 255)
+                }
+                for color_name, rgb in colors.items():
+                    color_action = QAction(color_name.capitalize(), color_menu)
+                    pixmap = QPixmap(16, 16)
+                    pixmap.fill(QColor(*rgb))
+                    color_action.setIcon(QIcon(pixmap))
+                    color_action.triggered.connect(lambda _, c=rgb: self.recolor_vertex(points[0], c))
+                    color_menu.addAction(color_action)
 
-            context_menu.exec(event.screenPos().toPoint())
+                # Действие "Добавить ребро"
+                add_edge_action = QAction("Добавить ребро", context_menu)
+                add_edge_action.triggered.connect(lambda: self.start_adding_edge(points[0]))
+                context_menu.addAction(add_edge_action)
+
+                context_menu.exec(event.screenPos().toPoint())
 
     def update_temp_line_arrow(self, end_pos):
         # Обновляем временную стрелку, которая следует за курсором
@@ -207,7 +258,7 @@ class Graph(pg.GraphItem):
         self.start_vertex = None
         self.temp_arrow = None
 
-    def edge_right_click(self, line, event):
+    def edge_click(self, line, event):
         if event.button() == Qt.MouseButton.LeftButton:
             # Контекстное меню для удаления ребра
             context_menu = QMenu()
@@ -227,21 +278,32 @@ class Graph(pg.GraphItem):
             # Также удаляем ребро из списка смежности
             self.adjacency = np.delete(self.adjacency, index, axis=0)
             # Обновляем граф без удалённого ребра
-            self.setData(pos=self.pos, adj=self.adjacency, points_colors=self.points_colors, texts=self.texts, size=1,
-                         pxMode=False)
+            self.setData(**(self.data | {'adj': self.adjacency}))
 
     def add_edge(self, start_vertex, end_vertex):
-        start_index = int(start_vertex.data()[0])
-        end_index = int(end_vertex.data()[0])
+        start_index = int(start_vertex.index())
+        end_index = int(end_vertex.index())
 
         # Проверка, что такое ребро еще не существует
         if not any((edge == [start_index, end_index]).all() for edge in self.adjacency):
             self.adjacency = np.vstack([self.adjacency, [start_index, end_index]])
-            self.setData(pos=self.pos, adj=self.adjacency, points_colors=self.points_colors, texts=self.texts, size=1,
-                         pxMode=False)
+            self.setData(**(self.data | {'adj': self.adjacency}))
+
+    def add_vertex(self, pos):
+        new_pos = np.array([pos.x(), pos.y()])
+
+        # Add new position to the existing ones
+        self.pos = np.vstack([self.pos, new_pos])
+
+        # Optionally, add a default text and color for the new vertex
+        self.texts.append(f"Point {len(self.pos) - 1}")
+        self.points_colors.append((255, 255, 255))  # Default color (white)
+
+        # Update the graph with the new vertex
+        self.setData(**(self.data | {"pos": self.pos, "texts": self.texts, "points_colors": self.points_colors}))
 
     def remove_vertex(self, point):
-        index = int(point.data()[0])
+        index = int(point.index())
         self.pos = np.delete(self.pos, index, axis=0)
         self.texts.pop(index)
         self.points_colors.pop(index)
@@ -253,16 +315,27 @@ class Graph(pg.GraphItem):
         self.adjacency = np.array([[i if i < index else i - 1 for i in edge] for edge in self.adjacency])
 
         # Обновляем граф
-        self.setData(pos=self.pos, adj=self.adjacency, points_colors=self.points_colors, texts=self.texts, size=1,
-                     pxMode=False)
+        self.setData(**(self.data | {"pos": self.pos, "texts": self.texts, "points_colors": self.points_colors}))
 
     def recolor_vertex(self, point, color):
-        index = int(point.data()[0])
+        index = int(point.index())
 
         # Обновляем цвет вершины
         self.points_colors[index] = color
-        self.setData(pos=self.pos, adj=self.adjacency, points_colors=self.points_colors, texts=self.texts, size=1,
-                     pxMode=False)
+        self.setData(**(self.data | {"points_colors": self.points_colors}))
+
+
+class Worker(QThread):
+    """
+    Поток для выполнения фоновой задачи (здесь это time.sleep)
+    """
+    finished = pyqtSignal(float)  # Сигнал, который передает время выполнения
+
+    def run(self):
+        start_time = time.time()
+        time.sleep(1)  # Заглушка для выполнения задачи
+        elapsed_time = time.time() - start_time
+        self.finished.emit(elapsed_time)  # Эмитируем сигнал с результатом
 
 
 class MainWindow(QMainWindow):
@@ -274,7 +347,7 @@ class MainWindow(QMainWindow):
         # Enable antialiasing for prettier plots
         pg.setConfigOptions(antialias=True)
 
-        self.graph = Graph()
+        self.graph = Graph(self)
 
         self.viewbx = CustomViewBox(graph=self.graph, enableMenu=False)
         self.graph_widget.addItem(self.viewbx)
@@ -318,62 +391,56 @@ class MainWindow(QMainWindow):
                            pxMode=False)
         self.initUI()
 
-        # Add context menu
-        self.graph_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.graph_widget.customContextMenuRequested.connect(self.show_context_menu)
-
     def initUI(self):
         menubar = self.menuBar()
 
         # Создание меню File
-        fileMenu = menubar.addMenu('File')
+        fileMenu = menubar.addMenu('Файл')
 
         # Добавление опции экспортирования
-        export_action = QAction('Export Graph', self)
+        export_action = QAction('Экспорт графа', self)
         export_action.triggered.connect(self.export_graph)
         fileMenu.addAction(export_action)
 
         # Добавление опции импортирования
-        import_action = QAction('Import Graph', self)
+        import_action = QAction('Импорт графа', self)
         import_action.triggered.connect(self.import_graph)
         fileMenu.addAction(import_action)
 
         # Создание меню Run
-        runMenu = menubar.addMenu('Run')
+        runMenu = menubar.addMenu('Запуск')
+
+        dijkstra_menu = QMenu("Алгоритм Дейкстры", runMenu)
+        runMenu.addMenu(dijkstra_menu)
 
         # Добавление опций "Unidirectional" и "Bidirectional"
-        unidirectional_action = QAction('Unidirectional', self)
+        unidirectional_action = QAction('Однонаправленный', self)
         unidirectional_action.triggered.connect(lambda: self.start_shortest_path('unidirectional'))
-        runMenu.addAction(unidirectional_action)
+        dijkstra_menu.addAction(unidirectional_action)
 
-        bidirectional_action = QAction('Bidirectional', self)
+        bidirectional_action = QAction('Двунаправленный', self)
         bidirectional_action.triggered.connect(lambda: self.start_shortest_path('bidirectional'))
-        runMenu.addAction(bidirectional_action)
+        dijkstra_menu.addAction(bidirectional_action)
 
-    def show_context_menu(self, pos):
-        context_menu = QMenu(self)
+        self.statusBar().showMessage("")
 
-        # Add vertex action
-        add_vertex_action = QAction('Добавить вершину', self)
-        add_vertex_action.triggered.connect(lambda: self.add_vertex(pos))
-        context_menu.addAction(add_vertex_action)
+    def start_shortest_path(self, mode):
+        # Подсказка: выберите начальную вершину
+        self.statusBar().showMessage("1. Выберите начальную вершину (или нажмите на поле чтобы отменить)")
 
-        context_menu.exec(self.mapToGlobal(pos))
+        self.graph.find_method = mode  # Сохранение выбранного режима
 
-    def add_vertex(self, pos):
-        view_pos = self.viewbx.mapSceneToView(QPointF(pos))
-        new_pos = np.array([view_pos.x(), view_pos.y()])
+    def run_algorithm(self):
+        # Запуск алгоритма в отдельном потоке
+        self.worker = Worker()
+        self.worker.finished.connect(self.on_algorithm_finished)  # Подключение сигнала к слоту
+        self.worker.start()
 
-        # Add new position to the existing ones
-        self.graph.pos = np.vstack([self.graph.pos, new_pos])
-
-        # Optionally, add a default text and color for the new vertex
-        self.graph.texts.append(f"Point {len(self.graph.pos) - 1}")
-        self.graph.points_colors.append((255, 255, 255))  # Default color (white)
-
-        # Update the graph with the new vertex
-        self.graph.setData(pos=self.graph.pos, adj=self.graph.adjacency, points_colors=self.graph.points_colors,
-                           texts=self.graph.texts, size=1, pxMode=False)
+    def on_algorithm_finished(self, elapsed_time):
+        self.statusBar().showMessage("Алгоритм завершен")
+        # Показ информационного окна
+        QMessageBox.information(self, "Result", f"Путь найден. Время выполнения: {elapsed_time:.2f} секунд.")
+        self.graph.reset_find()
 
     def export_graph(self):
         file_name, _ = QFileDialog.getSaveFileName(self, "Save Graph", "", "JSON Files (*.json);;All Files (*)")
@@ -383,13 +450,12 @@ class MainWindow(QMainWindow):
     def import_graph(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Open Graph", "", "JSON Files (*.json);;All Files (*)")
         if file_name:
-            pos, adj, points_colors, texts = self.import_graph_from_json(file_name)
-            self.graph.setData(pos=pos, adj=adj, points_colors=points_colors, texts=texts, pxMode=False)
+            self.graph.setData(**(self.graph.data | self.import_graph_from_json(file_name)))
 
     def export_graph_to_json(self, file_path):
         graph_data = {
-            "positions": self.graph.pos.tolist(),
-            "adjacency": self.graph.adjacency.tolist(),
+            "pos": self.graph.pos.tolist(),
+            "adj": self.graph.adjacency.tolist(),
             "points_colors": self.graph.points_colors,
             "texts": self.graph.texts,
         }
@@ -399,11 +465,9 @@ class MainWindow(QMainWindow):
     def import_graph_from_json(self, file_path):
         with open(file_path, 'r') as f:
             graph_data = json.load(f)
-        pos = np.array(graph_data["positions"])
-        adj = np.array(graph_data["adjacency"])
-        points_colors = graph_data['points_colors']
-        texts = graph_data["texts"]
-        return pos, adj, points_colors, texts
+        graph_data['pos'] = np.array(graph_data["pos"])
+        graph_data['adj'] = np.array(graph_data["adj"])
+        return graph_data
 
 
 if __name__ == '__main__':
