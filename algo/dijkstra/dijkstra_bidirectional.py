@@ -91,7 +91,8 @@ def dijkstra_bidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, ar
 
     if not visited_start & visited_end:
         if DEBUG:
-            print(f"Концы не встретились")
+            print("\n\t* Результат: ")
+            print("\t\t Пути не существует")
         # Если нет ни одной вершины и там и там
         return float('inf'), []  # Расстояние между вершинами считать бесконечными, а пути не существует
 

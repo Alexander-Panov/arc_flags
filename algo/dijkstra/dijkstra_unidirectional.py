@@ -54,6 +54,12 @@ def dijkstra_unidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, a
 
     distance = distances[end_index]  # получить расстояние конкретно до end
 
+    if distance is None:
+        if DEBUG:
+            print("\n\t* Результат: ")
+            print("\t\t Пути не существует")
+        return float('inf'), []
+
     path: WeightedPath = path_dict_to_path(start_index, end_index, path_dict)
 
     if DEBUG:

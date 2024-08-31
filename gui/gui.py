@@ -9,7 +9,15 @@ import pyqtgraph as pg
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QPixmap, QColor, QIcon
 from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog, QMenu, QMessageBox
-from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent, HoverEvent
+from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
+
+from algo.config import DEBUG
+from algo.dijkstra.arc_flags import arc_flags_preprocessing
+from algo.dijkstra.dijkstra_bidirectional import dijkstra_bidirectional
+from algo.dijkstra.dijkstra_unidirectional import dijkstra_unidirectional
+from algo.dijkstra.structures import WeightedPath
+from algo.graph import Graph
+from algo.vertex import Vertex
 
 
 class CustomViewBox(pg.ViewBox):
@@ -20,9 +28,21 @@ class CustomViewBox(pg.ViewBox):
 
 
 DARK_GREEN = (0, 100, 0)
+COLORS = {
+    'Красный': (255, 0, 0),
+    'Зеленый': (0, 255, 0),
+    'Синий': (0, 0, 255),
+    'Голубой': (0, 255, 255),
+    'Розовый': (255, 0, 255),
+    'Желтый': (255, 255, 0),
+    'Черный': (0, 0, 0),
+    'Белый': (255, 255, 255)
+}
+
+K = len(COLORS)
 
 
-class Graph(pg.GraphItem):
+class GraphGUI(pg.GraphItem):
     def __init__(self, main_window: MainWindow, **kwargs):
         self.data = {}
         self.main_window = main_window
@@ -32,6 +52,8 @@ class Graph(pg.GraphItem):
         self.arrows = []
         self.edges = []  # Список графических элементов рёбер
 
+        self.graph: Graph | None = None
+
         super().__init__(**kwargs)
 
         self.dragging_edge = False  # Флаг, показывающий, что идёт добавление ребра
@@ -40,6 +62,7 @@ class Graph(pg.GraphItem):
         self.temp_line = None
 
         self.find_method = None  # Сохранение выбранного режима поиска
+        self.arc_flags = False
         # Добавление переменных для начальной и конечной вершин
         self.start_vertex = None
         self.end_vertex = None
@@ -55,7 +78,9 @@ class Graph(pg.GraphItem):
             self.points_colors = self.data.pop('points_colors')
             self.data['symbolBrush'] = [pg.mkBrush(color=color) for color in self.points_colors]
             self.data['symbolPen'] = [pg.mkPen(width=0) for _ in self.points_colors]
-
+        if 'adj' in self.data:
+            self.data['edgePen'] = [pg.mkPen(width=5) for _ in self.data['adj']]
+            self.data['arrowBrush'] = [pg.mkBrush(color='w') for _ in self.data['adj']]
         self.data['pen'] = pg.mkPen(width=5)
         self.updateGraph()
 
@@ -74,6 +99,30 @@ class Graph(pg.GraphItem):
             item.setPos(*self.pos[i])
         self.scatter.setAcceptHoverEvents(True)
         self.drawArrows()
+        self.fillGraph()
+
+    def fillGraph(self):
+        vertices = []
+        for text, color in zip(self.texts, self.points_colors):
+            # noinspection PyTypeChecker
+            vertices.append(Vertex(text, list(COLORS.values()).index(tuple(color))))
+        self.graph = Graph(k=K, vertices=vertices)
+        if self.adjacency is not None:
+            for (v1, v2), edge in zip(self.adjacency, self.edges):
+                x_data, y_data = edge.getData()
+
+                # Вычисляем разности между соседними точками
+                dx = np.diff(x_data)
+                dy = np.diff(y_data)
+
+                # Вычисляем длины отрезков между точками
+                segment_lengths = np.sqrt(dx ** 2 + dy ** 2)
+                self.graph.add_edge_by_indices(int(v1), int(v2), float(segment_lengths[0]))
+
+        arc_flags_preprocessing(self.graph)
+
+        if DEBUG:
+            print(self.graph)
 
     def mouseDragEvent(self, ev):
         ev.accept()
@@ -129,6 +178,8 @@ class Graph(pg.GraphItem):
     def reset_find(self):
         self.main_window.statusBar().clearMessage()
         self.data['symbolPen'] = [pg.mkPen(width=0) for _ in self.points_colors]
+        self.data['edgePen'] = [pg.mkPen(width=5) for _ in self.data['adj']]
+        self.data['arrowBrush'] = [pg.mkBrush(color='w') for _ in self.data['adj']]
 
         self.find_method = None
         self.start_vertex = None
@@ -147,24 +198,24 @@ class Graph(pg.GraphItem):
         self.edges = []
 
         if self.adjacency is not None:
-            for edge in self.adjacency:
+            for edge, pen in zip(self.adjacency, self.data['edgePen']):
                 start = self.pos[edge[0]]
                 end = self.pos[edge[1]]
 
                 # Создание графического элемента для ребра
-                line = pg.PlotCurveItem([start[0], end[0]], [start[1], end[1]], pen=pg.mkPen(width=5), clickable=True)
+                line = pg.PlotCurveItem([start[0], end[0]], [start[1], end[1]], pen=pen, clickable=True)
                 # Добавление события нажатия на ребро
                 line.sigClicked.connect(self.edge_click)
 
                 self.getViewBox().addItem(line)
                 self.edges.append(line)
         if self.adjacency is not None:
-            for edge in self.adjacency:
+            for edge, brush in zip(self.adjacency, self.data['arrowBrush']):
                 start = self.pos[edge[0]]
                 end = self.pos[edge[1]]
                 arrow = pg.ArrowItem(pos=end,
                                      angle=np.degrees(np.arctan2((end[1] - start[1]), end[0] - start[0])) + 180,
-                                     brush=pg.mkBrush(color=color),
+                                     brush=brush,
                                      headLen=0.7,
                                      pxMode=False)
                 self.arrows.append(arrow)
@@ -201,17 +252,7 @@ class Graph(pg.GraphItem):
                 context_menu.addMenu(color_menu)
 
                 # Добавление опций цветов в подменю
-                colors = {
-                    'Красный': (255, 0, 0),
-                    'Зеленый': (0, 255, 0),
-                    'Синий': (0, 0, 255),
-                    'Голубой': (0, 255, 255),
-                    'Розовый': (255, 0, 255),
-                    'Желтый': (255, 255, 0),
-                    'Черный': (0, 0, 0),
-                    'Белый': (255, 255, 255)
-                }
-                for color_name, rgb in colors.items():
+                for color_name, rgb in COLORS.items():
                     color_action = QAction(color_name.capitalize(), color_menu)
                     pixmap = QPixmap(16, 16)
                     pixmap.fill(QColor(*rgb))
@@ -265,6 +306,10 @@ class Graph(pg.GraphItem):
             delete_action = QAction("Удалить ребро", context_menu)
             delete_action.triggered.connect(lambda: self.remove_edge(line))
             context_menu.addAction(delete_action)
+
+            show_flags_action = QAction("Посмотреть флаги", context_menu)
+            show_flags_action.triggered.connect(lambda: self.show_flags(line))
+            context_menu.addAction(show_flags_action)
             context_menu.exec(event.screenPos().toPoint())
 
     def remove_edge(self, line):
@@ -296,7 +341,7 @@ class Graph(pg.GraphItem):
         self.pos = np.vstack([self.pos, new_pos])
 
         # Optionally, add a default text and color for the new vertex
-        self.texts.append(f"Point {len(self.pos) - 1}")
+        self.texts.append(f"Point {int(self.texts[-1].split()[1]) + 1}")
         self.points_colors.append((255, 255, 255))  # Default color (white)
 
         # Update the graph with the new vertex
@@ -315,7 +360,7 @@ class Graph(pg.GraphItem):
         self.adjacency = np.array([[i if i < index else i - 1 for i in edge] for edge in self.adjacency])
 
         # Обновляем граф
-        self.setData(**(self.data | {"pos": self.pos, "texts": self.texts, "points_colors": self.points_colors}))
+        self.setData(**(self.data | {"adj": self.adjacency, "pos": self.pos, "texts": self.texts, "points_colors": self.points_colors}))
 
     def recolor_vertex(self, point, color):
         index = int(point.index())
@@ -324,18 +369,55 @@ class Graph(pg.GraphItem):
         self.points_colors[index] = color
         self.setData(**(self.data | {"points_colors": self.points_colors}))
 
+    def highlight_path(self, path: WeightedPath):
+        edge = None
+        self.data['edgePen'] = [pg.mkPen(width=0) for _ in self.adjacency]
+        for edge in path:
+            self.data['symbolPen'][edge.u] = pg.mkPen(width=5, color=DARK_GREEN)
+            edge_arr = np.array([edge.u, edge.v])
+            edge_ind = None
+            for i, row in enumerate(self.adjacency):
+                if np.array_equal(row, edge_arr):
+                    edge_ind = i
+                    break
+
+            self.data['edgePen'][edge_ind] = pg.mkPen(width=5, color=DARK_GREEN)
+            self.data['arrowBrush'][edge_ind] = pg.mkBrush(color=DARK_GREEN)
+
+        self.data['symbolPen'][edge.v] = pg.mkPen(width=5, color=DARK_GREEN)
+        self.updateGraph()
+
+    def show_flags(self, line):
+        line_ind = self.edges.index(line)
+
+
 
 class Worker(QThread):
     """
     Поток для выполнения фоновой задачи (здесь это time.sleep)
     """
-    finished = pyqtSignal(float)  # Сигнал, который передает время выполнения
+    finished = pyqtSignal(bool, float, float)  # Сигнал, который передает время выполнения
+
+    def __init__(self, graph, parent=None):
+        super().__init__(parent)
+        self.graph: GraphGUI = graph  # Сохранение graph как атрибута экземпляра
 
     def run(self):
         start_time = time.time()
-        time.sleep(1)  # Заглушка для выполнения задачи
+
+        start_vertex = self.graph.graph.vertex_at(int(self.graph.start_vertex.index()))
+        end_vertex = self.graph.graph.vertex_at(int(self.graph.end_vertex.index()))
+
+        if self.graph.find_method == 'unidirectional':
+            distance, path = dijkstra_unidirectional(self.graph.graph, start_vertex, end_vertex, self.graph.arc_flags)
+        elif self.graph.find_method == 'bidirectional':
+            distance, path = dijkstra_bidirectional(self.graph.graph, start_vertex, end_vertex, self.graph.arc_flags)
+
         elapsed_time = time.time() - start_time
-        self.finished.emit(elapsed_time)  # Эмитируем сигнал с результатом
+
+        self.graph.highlight_path(path)
+
+        self.finished.emit(distance != float('inf'), elapsed_time, distance)  # Эмитируем сигнал с результатом
 
 
 class MainWindow(QMainWindow):
@@ -347,7 +429,7 @@ class MainWindow(QMainWindow):
         # Enable antialiasing for prettier plots
         pg.setConfigOptions(antialias=True)
 
-        self.graph = Graph(self)
+        self.graph = GraphGUI(self)
 
         self.viewbx = CustomViewBox(graph=self.graph, enableMenu=False)
         self.graph_widget.addItem(self.viewbx)
@@ -422,24 +504,38 @@ class MainWindow(QMainWindow):
         bidirectional_action.triggered.connect(lambda: self.start_shortest_path('bidirectional'))
         dijkstra_menu.addAction(bidirectional_action)
 
+        unidirectional_action = QAction('Однонаправленный (arc_flags)', self)
+        unidirectional_action.triggered.connect(lambda: self.start_shortest_path('unidirectional', True))
+        dijkstra_menu.addAction(unidirectional_action)
+
+        bidirectional_action = QAction('Двунаправленный (arc_flags)', self)
+        bidirectional_action.triggered.connect(lambda: self.start_shortest_path('bidirectional', True))
+        dijkstra_menu.addAction(bidirectional_action)
+
         self.statusBar().showMessage("")
 
-    def start_shortest_path(self, mode):
+    def start_shortest_path(self, mode, arc_flags=False):
         # Подсказка: выберите начальную вершину
         self.statusBar().showMessage("1. Выберите начальную вершину (или нажмите на поле чтобы отменить)")
 
         self.graph.find_method = mode  # Сохранение выбранного режима
+        self.graph.arc_flags = arc_flags
 
     def run_algorithm(self):
         # Запуск алгоритма в отдельном потоке
-        self.worker = Worker()
+        self.worker = Worker(self.graph)
         self.worker.finished.connect(self.on_algorithm_finished)  # Подключение сигнала к слоту
         self.worker.start()
 
-    def on_algorithm_finished(self, elapsed_time):
+    def on_algorithm_finished(self, exists, elapsed_time, distance):
         self.statusBar().showMessage("Алгоритм завершен")
+        message = "Путь "
+        message += "найден ✅" if exists else "не найден ❌"
+        message += f".\nВремя выполнения: {elapsed_time:.2f} секунд."
+        if exists:
+            message += f".\nРасстояние пути: {distance:.2f}"
         # Показ информационного окна
-        QMessageBox.information(self, "Result", f"Путь найден. Время выполнения: {elapsed_time:.2f} секунд.")
+        QMessageBox.information(self, "Результат", message)
         self.graph.reset_find()
 
     def export_graph(self):
