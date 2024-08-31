@@ -18,6 +18,8 @@ from algo.dijkstra.dijkstra_unidirectional import dijkstra_unidirectional
 from algo.dijkstra.structures import WeightedPath
 from algo.graph import Graph
 from algo.vertex import Vertex
+from gui.color_squares import ColorSquaresDialog
+from gui.config import DARK_GREEN, COLORS, K
 
 
 class CustomViewBox(pg.ViewBox):
@@ -25,21 +27,6 @@ class CustomViewBox(pg.ViewBox):
         super().__init__(*args, **kwargs)
         self.graph = graph
         self.addItem(self.graph)
-
-
-DARK_GREEN = (0, 100, 0)
-COLORS = {
-    'Красный': (255, 0, 0),
-    'Зеленый': (0, 255, 0),
-    'Синий': (0, 0, 255),
-    'Голубой': (0, 255, 255),
-    'Розовый': (255, 0, 255),
-    'Желтый': (255, 255, 0),
-    'Черный': (0, 0, 0),
-    'Белый': (255, 255, 255)
-}
-
-K = len(COLORS)
 
 
 class GraphGUI(pg.GraphItem):
@@ -106,7 +93,9 @@ class GraphGUI(pg.GraphItem):
         for text, color in zip(self.texts, self.points_colors):
             # noinspection PyTypeChecker
             vertices.append(Vertex(text, list(COLORS.values()).index(tuple(color))))
+
         self.graph = Graph(k=K, vertices=vertices)
+
         if self.adjacency is not None:
             for (v1, v2), edge in zip(self.adjacency, self.edges):
                 x_data, y_data = edge.getData()
@@ -360,7 +349,8 @@ class GraphGUI(pg.GraphItem):
         self.adjacency = np.array([[i if i < index else i - 1 for i in edge] for edge in self.adjacency])
 
         # Обновляем граф
-        self.setData(**(self.data | {"adj": self.adjacency, "pos": self.pos, "texts": self.texts, "points_colors": self.points_colors}))
+        self.setData(**(self.data | {"adj": self.adjacency, "pos": self.pos, "texts": self.texts,
+                                     "points_colors": self.points_colors}))
 
     def recolor_vertex(self, point, color):
         index = int(point.index())
@@ -389,7 +379,11 @@ class GraphGUI(pg.GraphItem):
 
     def show_flags(self, line):
         line_ind = self.edges.index(line)
+        start, end = self.adjacency[line_ind]
+        edge = [edge for edge in self.graph.edges_of_index(int(start)) if edge.v == int(end)][0]
 
+        self.dialog = ColorSquaresDialog(edge._flags)
+        self.dialog.show()
 
 
 class Worker(QThread):
