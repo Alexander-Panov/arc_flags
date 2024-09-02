@@ -115,8 +115,8 @@ def dijkstra_bidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, ar
 
 
     # ! Кратчайший путь не обязательно пройдёт через вершину connecting_vertex
-    # Перебираем каждую посещенную из start вершину (кроме connecting_vertex) + start_index
-    for u in (visited_start - {connecting_vertex} | {start_index}):
+    # Перебираем каждую посещенную из start вершину (кроме connecting_vertex)
+    for u in (visited_start - {connecting_vertex}):
         if DEBUG:
             print(f"\t\tВЕРШИНА {u}:")
         for we in weighted_graph.edges_of_index(u):  # для каждого исходящего ребра этой вершины (которое состоит из u и v)

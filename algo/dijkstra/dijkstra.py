@@ -77,7 +77,7 @@ def dijkstra_step(weighted_graph: Graph,
             priority_queue.push(DijkstraNode(vertex, distances[vertex]))
 
             if DEBUG:
-                print(f"\t\t! Найдена более короткий путь до вершины {vertex}")
+                print(f"\t\t! Найден более короткий путь до вершины {vertex}")
                 print(f"\t\tСтарое расстояние: {dist_v}")
                 print(f"\t\tНовое расстояние: {dist_u + we.weight}")
                 print(f"\t\tВершина {vertex} добавлена в очередь с приоритетом")

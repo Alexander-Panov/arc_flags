@@ -72,15 +72,19 @@ if __name__ == '__main__':
 
     print("\n\n*** Однонаправленный поиск (без оптимизации arc_flags): ***")
     distance, path = dijkstra_unidirectional(city_graph, los_angeles, boston, arc_flags=False)
+    print("Кратчайший путь из Los Angeles в Boston:")
+    print_weighted_path(city_graph, path)
     print("\n*** Однонаправленный поиск (с оптимизацией arc_flags): ***")
-    dijkstra_unidirectional(city_graph, los_angeles, boston, arc_flags=True)
+    distance, path = dijkstra_unidirectional(city_graph, los_angeles, boston, arc_flags=True)
     print("Кратчайший путь из Los Angeles в Boston:")
     print_weighted_path(city_graph, path)
 
     print("\n\n*** Двунаправленный поиск (без оптимизации arc_flags): ***")
     distance, path = dijkstra_bidirectional(city_graph, los_angeles, boston, arc_flags=False)
+    print("Кратчайший путь из Los Angeles в Boston:")
+    print_weighted_path(city_graph, path)
     print("\n*** Двунаправленный поиск (с оптимизацией arc_flags): ***")
-    dijkstra_bidirectional(city_graph, los_angeles, boston, arc_flags=True)
+    distance, path = dijkstra_bidirectional(city_graph, los_angeles, boston, arc_flags=True)
     print("Кратчайший путь из Los Angeles в Boston:")
     print_weighted_path(city_graph, path)
 
