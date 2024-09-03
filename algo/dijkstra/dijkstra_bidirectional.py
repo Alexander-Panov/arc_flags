@@ -9,15 +9,18 @@ from algo.vertex import Vertex
 
 
 @clock
-def dijkstra_bidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, arc_flags=False) -> tuple[float, WeightedPath]:
+def dijkstra_bidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, arc_flags=False) -> tuple[
+    float, WeightedPath, int]:
     """
     Функция двунаправленного поиска кратчайшего маршрута из start в end с применением алгоритма Дейкстры
     :param weighted_graph: взвешенный граф
     :param start: вершина начала поиска
     :param end: вершина конца поиска
     :param arc_flags: включить оптимизацию arc_flags
-    :return: расстояние между вершинами и путь от начала до конца
+    :return: расстояние между вершинами, путь от начала до конца, количество операций
     """
+    count_op = 0  # Счетчик кол-ва операций
+
     if DEBUG:
         print("\t* Начало двунаправленного поиска")
 
@@ -63,8 +66,8 @@ def dijkstra_bidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, ar
         if DEBUG:
             step += 1
             print(f"\n\tШАГ №{step} - START:")
-        dijkstra_step(weighted_graph, queue_start, distances_start, path_dict_start, visited=visited_start,
-                      arc_flags=arc_flags, end=end)
+        count_op += dijkstra_step(weighted_graph, queue_start, distances_start, path_dict_start, visited=visited_start,
+                                  arc_flags=arc_flags, end=end)
         if DEBUG:
             print(f"\tРасстояния до каждой вершины от start: {distances_start}")
             print(f"\tОчередь с приоритетом для start: {queue_start}")
@@ -78,8 +81,9 @@ def dijkstra_bidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, ar
 
         if DEBUG:
             print(f"\n\tШАГ №{step} - END:")
-        dijkstra_step(weighted_graph, queue_end, distances_end, path_dict_end, visited=visited_end, reverse=True,
-                      arc_flags=arc_flags, end=end)
+        count_op += dijkstra_step(weighted_graph, queue_end, distances_end, path_dict_end, visited=visited_end,
+                                  reverse=True,
+                                  arc_flags=arc_flags, end=end)
         if DEBUG:
             print(f"\tРасстояния до каждой вершины от end: {distances_end}")
             print(f"\tОчередь с приоритетом для end: {queue_end}")
@@ -94,7 +98,7 @@ def dijkstra_bidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, ar
             print("\n\t* Результат: ")
             print("\t\t Пути не существует")
         # Если нет ни одной вершины и там и там
-        return float('inf'), []  # Расстояние между вершинами считать бесконечными, а пути не существует
+        return float('inf'), [], count_op  # Расстояние между вершинами считать бесконечными, а пути не существует
 
     connecting_vertex = (visited_start & visited_end).pop()  # Получить вершину, которая была посещена в двух очередях
 
@@ -113,22 +117,25 @@ def dijkstra_bidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, ar
         print(f"\t Лучший путь: {best_path}")
         print(f"\n\t ПЕРЕБОР ВСЕХ ВЕРШИН ГРАФА:")
 
-
     # ! Кратчайший путь не обязательно пройдёт через вершину connecting_vertex
     # Перебираем каждую посещенную из start вершину (кроме connecting_vertex)
     for u in (visited_start - {connecting_vertex}):
         if DEBUG:
             print(f"\t\tВЕРШИНА {u}:")
-        for we in weighted_graph.edges_of_index(u):  # для каждого исходящего ребра этой вершины (которое состоит из u и v)
+        for we in weighted_graph.edges_of_index(
+                u):  # для каждого исходящего ребра этой вершины (которое состоит из u и v)
             # Есть ли до конца этого ребра существует путь из end
             if distances_end[we.v] is not None:
+                count_op += 1
                 if DEBUG:
                     print(f"\t\t\tРЕБРО {we}:")
                 if arc_flags:  # Включена оптимизация arc flags
                     if not we.get_flag(end.k):  # Если это ребро не лежит на кратчайшем пути в регион вершины end
-                        print(f"\t\t\t(оптимизация arc flags) ребро пропущено, так не содержится в кратчайшим пути до региона '{end.k}'")
+                        print(
+                            f"\t\t\t(оптимизация arc flags) ребро пропущено, так не содержится в кратчайшим пути до региона '{end.k}'")
                         continue  # пропустить его
-                path_length = distances_start[u] + we.weight + distances_end[we.v]  # считаем продолжительность нового пути через вершину u
+                path_length = distances_start[u] + we.weight + distances_end[
+                    we.v]  # считаем продолжительность нового пути через вершину u
                 if path_length < best_path_length:  # Если новый путь короче предыдущего наилучшего пути
                     if DEBUG:
                         print(f"\t\t\t! Найдена более короткий путь")
@@ -152,4 +159,4 @@ def dijkstra_bidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, ar
         print_weighted_path(weighted_graph, best_path)
         print("\t* Конец двунаправленного поиска")
 
-    return best_path_length, best_path
+    return best_path_length, best_path, count_op

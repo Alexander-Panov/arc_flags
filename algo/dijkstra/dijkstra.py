@@ -15,7 +15,7 @@ def dijkstra_step(weighted_graph: Graph,
                   reverse: bool = False,
                   arc_flags: bool = False,
                   visited: set = None,
-                  end: Vertex = None):
+                  end: Vertex = None) -> int:
     """
     Функция шага алгоритма Дейкстры.
     Функция полностью проверяет одну вершину из приоритетной очереди
@@ -27,10 +27,11 @@ def dijkstra_step(weighted_graph: Graph,
     :param arc_flags: включить оптимизацию arc_flags
     :param visited: множество уже посещенных вершин (None если не нужно отмечать посещенные вершины (для dijkstra, unidirectional_dijkstra)
     :param end: конечная вершина, к который мы ищем путь
-    :return: ничего
+    :return: количество операций
     """
+    count_op = 0  # счетчик количества операций
     if priority_queue.empty:  # если очередь с приоритетом пустая
-        return  # функция завершается
+        return 0  # функция завершается
     dijkstra_node = priority_queue.pop()
     u: int = dijkstra_node.vertex  # Исследуем ближайшую вершину
     # u - текущая вершина, с которой начинается поиск
@@ -49,6 +50,7 @@ def dijkstra_step(weighted_graph: Graph,
         print(f"\tИсследуемые ребра: {edges}")
 
     for we in edges:  # цикл по полученным ребрам текущей вершины
+        count_op += 1
         if DEBUG:
             print(f"\t\tРЕБРО {we}:")
         if not reverse:
@@ -88,6 +90,7 @@ def dijkstra_step(weighted_graph: Graph,
             pass
     if visited is not None:
         visited.add(u)  # отметить что вершина посещена
+    return count_op
 
 
 def dijkstra(weighted_graph: Graph, root: Vertex, reverse=False) -> tuple[

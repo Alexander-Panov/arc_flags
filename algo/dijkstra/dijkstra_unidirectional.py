@@ -12,15 +12,17 @@ from algo.vertex import Vertex
 
 @clock
 def dijkstra_unidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, arc_flags=False) -> tuple[
-    float, WeightedPath]:
+    float, WeightedPath, int]:
     """
     Однонаправленный поиск кратчайшего пути используя алгоритм Дейкстры
     :param weighted_graph: взвешенный граф
     :param start: вершина начала поиска
     :param end: вершина конца поиска
     :param arc_flags: включить оптимизацию arc_flags
-    :return: расстояние между вершинами и путь от начала до конца
+    :return: расстояние между вершинами, путь от начала до конца, количество операций
     """
+    count_op = 0  # Счетчик кол-ва операций
+
     if DEBUG:
         print("\t* Начало однонаправленного поиска")
 
@@ -46,7 +48,8 @@ def dijkstra_unidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, a
         if DEBUG:
             step += 1
             print(f"\n\tШАГ №{step}")
-        dijkstra_step(weighted_graph, priority_queue, distances, path_dict, arc_flags=arc_flags, end=end)
+        # Вызвать шаг алгоритма Дейкстры и прибавить количество выполненных операций
+        count_op += dijkstra_step(weighted_graph, priority_queue, distances, path_dict, arc_flags=arc_flags, end=end)
         if DEBUG:
             print(f"\tРасстояния до каждой вершины: {distances}")
             print(f"\tОчередь с приоритетом: {priority_queue}")
@@ -54,19 +57,20 @@ def dijkstra_unidirectional(weighted_graph: Graph, start: Vertex, end: Vertex, a
 
     distance = distances[end_index]  # получить расстояние конкретно до end
 
-    if distance is None:
-        if DEBUG:
-            print("\n\t* Результат: ")
-            print("\t\t Пути не существует")
-        return float('inf'), []
-
-    path: WeightedPath = path_dict_to_path(start_index, end_index, path_dict)
-
     if DEBUG:
         print("\n\t* Результат: ")
-        print("\t\t Кратчайший путь из Los Angeles в Boston:")
-        print('\t\t ', end='')
-        print_weighted_path(weighted_graph, path)
-        print("\t* Конец однонаправленного поиска")
 
-    return distance, path
+    if distance is None:
+        if DEBUG:
+            print("\t\t Пути не существует")
+        distance, path = float('inf'), []
+    else:
+        path: WeightedPath = path_dict_to_path(start_index, end_index, path_dict)
+        if DEBUG:
+            print("\t\t Кратчайший путь из Los Angeles в Boston:")
+            print('\t\t ', end='')
+            print_weighted_path(weighted_graph, path)
+
+    if DEBUG:
+        print("\t* Конец однонаправленного поиска")
+    return distance, path, count_op

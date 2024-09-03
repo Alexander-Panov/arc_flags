@@ -391,7 +391,7 @@ class Worker(QThread):
     """
     Поток для выполнения фоновой задачи (здесь это time.sleep)
     """
-    finished = pyqtSignal(bool, float, float)  # Сигнал, который передает время выполнения
+    finished = pyqtSignal(bool, float, float, int)  # Сигнал, который передает время выполнения
 
     def __init__(self, graph, parent=None):
         super().__init__(parent)
@@ -404,15 +404,15 @@ class Worker(QThread):
         end_vertex = self.graph.graph.vertex_at(int(self.graph.end_vertex.index()))
 
         if self.graph.find_method == 'unidirectional':
-            distance, path = dijkstra_unidirectional(self.graph.graph, start_vertex, end_vertex, self.graph.arc_flags)
+            distance, path, count_op = dijkstra_unidirectional(self.graph.graph, start_vertex, end_vertex, self.graph.arc_flags)
         elif self.graph.find_method == 'bidirectional':
-            distance, path = dijkstra_bidirectional(self.graph.graph, start_vertex, end_vertex, self.graph.arc_flags)
+            distance, path, count_op = dijkstra_bidirectional(self.graph.graph, start_vertex, end_vertex, self.graph.arc_flags)
 
         elapsed_time = time.time() - start_time
 
         self.graph.highlight_path(path)
 
-        self.finished.emit(distance != float('inf'), elapsed_time, distance)  # Эмитируем сигнал с результатом
+        self.finished.emit(distance != float('inf'), elapsed_time, distance, count_op)  # Эмитируем сигнал с результатом
 
 
 class MainWindow(QMainWindow):
@@ -474,15 +474,15 @@ class MainWindow(QMainWindow):
         # Создание меню File
         fileMenu = menubar.addMenu('Файл')
 
-        # Добавление опции экспортирования
-        export_action = QAction('Экспорт графа', self)
-        export_action.triggered.connect(self.export_graph)
-        fileMenu.addAction(export_action)
-
         # Добавление опции импортирования
         import_action = QAction('Импорт графа', self)
         import_action.triggered.connect(self.import_graph)
         fileMenu.addAction(import_action)
+
+        # Добавление опции экспортирования
+        export_action = QAction('Экспорт графа', self)
+        export_action.triggered.connect(self.export_graph)
+        fileMenu.addAction(export_action)
 
         # Создание меню Run
         runMenu = menubar.addMenu('Запуск')
@@ -522,13 +522,14 @@ class MainWindow(QMainWindow):
         self.worker.finished.connect(self.on_algorithm_finished)  # Подключение сигнала к слоту
         self.worker.start()
 
-    def on_algorithm_finished(self, exists, elapsed_time, distance):
+    def on_algorithm_finished(self, exists, elapsed_time, distance, count_op):
         self.statusBar().showMessage("Алгоритм завершен")
         message = "Путь "
         message += "найден ✅" if exists else "не найден ❌"
-        message += f".\nВремя выполнения: {elapsed_time:.2f} секунд."
+        message += f".\nВремя выполнения: {elapsed_time:.5f} секунд.\n"
+        message += f"Количество выполненных операций: {count_op}.\n"
         if exists:
-            message += f".\nРасстояние пути: {distance:.2f}"
+            message += f"Расстояние пути: {distance:.2f}"
         # Показ информационного окна
         QMessageBox.information(self, "Результат", message)
         self.graph.reset_find()
