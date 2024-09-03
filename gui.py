@@ -6,8 +6,8 @@ import time
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QAction, QPixmap, QColor, QIcon
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPointF
+from PyQt6.QtGui import QAction, QPixmap, QColor, QIcon, QPainterPath
 from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog, QMenu, QMessageBox
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 
@@ -68,7 +68,7 @@ class GraphGUI(pg.GraphItem):
         if 'adj' in self.data:
             self.data['edgePen'] = [pg.mkPen(width=5) for _ in self.data['adj']]
             self.data['arrowBrush'] = [pg.mkBrush(color='w') for _ in self.data['adj']]
-        self.data['pen'] = pg.mkPen(width=5)
+        self.data['pen'] = pg.mkPen(None)
         self.updateGraph()
 
     def setTexts(self, text):
@@ -176,7 +176,7 @@ class GraphGUI(pg.GraphItem):
 
         self.updateGraph()
 
-    def drawArrows(self, color='w'):
+    def drawArrows(self):
         for arrow in self.arrows:
             arrow.scene().removeItem(arrow)
         self.arrows = []
@@ -187,24 +187,43 @@ class GraphGUI(pg.GraphItem):
         self.edges = []
 
         if self.adjacency is not None:
-            for edge, pen in zip(self.adjacency, self.data['edgePen']):
+            for edge, line_pen, arrow_brush in zip(self.adjacency, self.data['edgePen'], self.data['arrowBrush']):
                 start = self.pos[edge[0]]
                 end = self.pos[edge[1]]
 
-                # Создание графического элемента для ребра
-                line = pg.PlotCurveItem([start[0], end[0]], [start[1], end[1]], pen=pen, clickable=True)
+                # Проверка на наличие обратного ребра
+                reverse_edge_exists = any((rev_edge == [edge[1], edge[0]]).all() for rev_edge in self.adjacency)
+
+                if reverse_edge_exists:
+                    # Если существует обратное ребро, добавим изгиб для текущего ребра
+                    ctrl_offset = np.array([-(end[1] - start[1]), end[0] - start[0]]) * 0.2  # Перпендикулярное смещение
+                    ctrl_point = (start + end) / 2 + ctrl_offset
+
+                    # Создание кривой с использованием контрольной точки
+                    x_points = [start[0], ctrl_point[0], end[0]]
+                    y_points = [start[1], ctrl_point[1], end[1]]
+
+                    # Вычисление угла на основе направления касательной в конечной точке кривой
+                    angle = np.degrees(np.arctan2((end[1] - ctrl_point[1]), (end[0] - ctrl_point[0]))) + 180
+
+                else:
+                    # Прямое ребро
+                    x_points = [start[0], end[0]]
+                    y_points = [start[1], end[1]]
+
+                    angle = np.degrees(np.arctan2((end[1] - start[1]), (end[0] - start[0]))) + 180
+
+                line = pg.PlotCurveItem(x_points, y_points, pen=line_pen, clickable=True)
+
                 # Добавление события нажатия на ребро
                 line.sigClicked.connect(self.edge_click)
 
                 self.getViewBox().addItem(line)
                 self.edges.append(line)
-        if self.adjacency is not None:
-            for edge, brush in zip(self.adjacency, self.data['arrowBrush']):
-                start = self.pos[edge[0]]
-                end = self.pos[edge[1]]
+
                 arrow = pg.ArrowItem(pos=end,
-                                     angle=np.degrees(np.arctan2((end[1] - start[1]), end[0] - start[0])) + 180,
-                                     brush=brush,
+                                     angle=angle,
+                                     brush=arrow_brush,
                                      headLen=0.7,
                                      pxMode=False)
                 self.arrows.append(arrow)
@@ -362,7 +381,6 @@ class GraphGUI(pg.GraphItem):
     def highlight_path(self, path: WeightedPath):
         if path:
             edge = None
-            self.data['edgePen'] = [pg.mkPen(width=0) for _ in self.adjacency]
             for edge in path:
                 self.data['symbolPen'][edge.u] = pg.mkPen(width=5, color=DARK_GREEN)
                 edge_arr = np.array([edge.u, edge.v])
@@ -404,9 +422,11 @@ class Worker(QThread):
         end_vertex = self.graph.graph.vertex_at(int(self.graph.end_vertex.index()))
 
         if self.graph.find_method == 'unidirectional':
-            distance, path, count_op = dijkstra_unidirectional(self.graph.graph, start_vertex, end_vertex, self.graph.arc_flags)
+            distance, path, count_op = dijkstra_unidirectional(self.graph.graph, start_vertex, end_vertex,
+                                                               self.graph.arc_flags)
         elif self.graph.find_method == 'bidirectional':
-            distance, path, count_op = dijkstra_bidirectional(self.graph.graph, start_vertex, end_vertex, self.graph.arc_flags)
+            distance, path, count_op = dijkstra_bidirectional(self.graph.graph, start_vertex, end_vertex,
+                                                              self.graph.arc_flags)
 
         elapsed_time = time.time() - start_time
 
